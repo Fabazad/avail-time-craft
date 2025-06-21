@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { ProjectForm } from '@/components/ProjectForm';
@@ -12,6 +11,9 @@ import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 import { useAvailability } from '@/hooks/useAvailability';
 import { scheduleProjects } from '@/utils/schedulingEngine';
 import { toast } from 'sonner';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@radix-ui/react-tabs';
+import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 
 const Index = () => {
   const [showForm, setShowForm] = useState(false);
@@ -31,7 +33,7 @@ const Index = () => {
     scheduledSessions, 
     loading: sessionsLoading, 
     completeSession,
-    refetch: refetchSessions
+    refetch: refetchScheduledSessions
   } = useScheduledSessions();
 
   const {
@@ -40,31 +42,30 @@ const Index = () => {
     updateAvailabilityRules
   } = useAvailability();
 
+  const { events: googleCalendarEvents } = useGoogleCalendar();
+
   // Trigger automatic scheduling when projects or availability rules change
-  const recalculateSchedule = async () => {
-    if (projects.length === 0 || availabilityRules.length === 0 || isRecalculating) {
-      return;
-    }
-
-    console.log('Recalculating schedule with', projects.length, 'projects and', availabilityRules.length, 'availability rules');
+  const recalculateSchedule = useCallback(async () => {
+    if (projects.length === 0 || availabilityRules.length === 0) return;
+    
     setIsRecalculating(true);
-
     try {
-      // Only schedule projects that are not completed
-      const activeProjects = projects.filter(p => p.status !== 'completed');
-      
-      if (activeProjects.length > 0) {
-        await scheduleProjects(activeProjects, availabilityRules);
-        await refetchSessions();
-        toast.success('Schedule updated successfully');
-      }
+      // Convert Google Calendar events to conflict format
+      const externalConflicts = googleCalendarEvents.map(event => ({
+        start: new Date(event.start_time),
+        end: new Date(event.end_time)
+      }));
+
+      await scheduleProjects(projects, availabilityRules, externalConflicts);
+      await refetchScheduledSessions();
+      toast.success('Schedule updated with calendar conflicts considered');
     } catch (error) {
       console.error('Error recalculating schedule:', error);
       toast.error('Failed to update schedule');
     } finally {
       setIsRecalculating(false);
     }
-  };
+  }, [projects, availabilityRules, googleCalendarEvents, refetchScheduledSessions]);
 
   // Trigger recalculation when projects or availability rules change
   useEffect(() => {
@@ -118,7 +119,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -147,96 +148,74 @@ const Index = () => {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex space-x-1 mb-6 bg-white/50 p-1 rounded-lg backdrop-blur-sm border border-blue-200/50">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-              activeTab === 'dashboard'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('projects')}
-            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-              activeTab === 'projects'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            Projects
-          </button>
-          <button
-            onClick={() => setActiveTab('availability')}
-            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-              activeTab === 'availability'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            Availability
-          </button>
-          <button
-            onClick={() => setActiveTab('calendar')}
-            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
-              activeTab === 'calendar'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            Calendar
-          </button>
-        </div>
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 bg-white/50 backdrop-blur-sm border border-blue-200/50">
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="availability">Availability</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          </TabsList>
 
-        {/* Content */}
-        {showForm ? (
-          <div className="max-w-2xl mx-auto">
-            <ProjectForm 
-              onSubmit={handleCreateProject}
-              onCancel={() => setShowForm(false)}
+          <TabsContent value="dashboard">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Dashboard
+                  projects={projects}
+                  scheduledSessions={scheduledSessions}
+                  availabilityRules={availabilityRules}
+                />
+                <GoogleCalendarIntegration />
+              </div>
+              
+              {/* Sidebar */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-white/50 p-4 rounded-lg shadow-lg border border-blue-200/50">
+                  <h2 className="text-lg font-medium text-gray-800 mb-2">Projects</h2>
+                  <SortableProjectsList
+                    projects={projects}
+                    scheduledSessions={scheduledSessions}
+                    onUpdateProject={handleUpdateProject}
+                    onDeleteProject={handleDeleteProject}
+                    onReorderProjects={handleReorderProjects}
+                  />
+                </div>
+                <div className="bg-white/50 p-4 rounded-lg shadow-lg border border-blue-200/50">
+                  <h2 className="text-lg font-medium text-gray-800 mb-2">Availability</h2>
+                  <AvailabilityManager
+                    availabilityRules={availabilityRules}
+                    onUpdateRules={handleUpdateAvailabilityRules}
+                  />
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="projects">
+            <SortableProjectsList
+              projects={projects}
+              scheduledSessions={scheduledSessions}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+              onReorderProjects={handleReorderProjects}
             />
-          </div>
-        ) : (
-          <>
-            {activeTab === 'dashboard' && (
-              <Dashboard 
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                onCompleteSession={completeSession}
-                onUpdateProject={handleUpdateProject}
-                onDeleteProject={handleDeleteProject}
-              />
-            )}
-            
-            {activeTab === 'projects' && (
-              <SortableProjectsList
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                onUpdateProject={handleUpdateProject}
-                onDeleteProject={handleDeleteProject}
-                onReorderProjects={handleReorderProjects}
-              />
-            )}
+          </TabsContent>
 
-            {activeTab === 'availability' && (
-              <AvailabilityManager
-                availabilityRules={availabilityRules}
-                onUpdateRules={handleUpdateAvailabilityRules}
-              />
-            )}
+          <TabsContent value="availability">
+            <AvailabilityManager
+              availabilityRules={availabilityRules}
+              onUpdateRules={handleUpdateAvailabilityRules}
+            />
+          </TabsContent>
 
-            {activeTab === 'calendar' && (
-              <CalendarView
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                availabilityRules={availabilityRules}
-                onCompleteSession={completeSession}
-              />
-            )}
-          </>
-        )}
+          <TabsContent value="calendar">
+            <CalendarView
+              projects={projects}
+              scheduledSessions={scheduledSessions}
+              availabilityRules={availabilityRules}
+              onCompleteSession={completeSession}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

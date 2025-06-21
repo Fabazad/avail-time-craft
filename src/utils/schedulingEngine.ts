@@ -6,11 +6,19 @@ export class SchedulingEngine {
   
   /**
    * Generates a complete schedule for all projects based on availability rules
+   * Now includes conflict detection with Google Calendar events
    */
-  generateSchedule(projects: Project[], availabilityRules: AvailabilityRule[]): ScheduledSession[] {
+  generateSchedule(
+    projects: Project[], 
+    availabilityRules: AvailabilityRule[], 
+    externalEvents: { start: Date; end: Date }[] = []
+  ): ScheduledSession[] {
     const activeProjects = projects.filter(p => p.status !== 'completed');
     const sortedProjects = this.sortProjectsByPriority(activeProjects);
     const availableSlots = this.generateAvailableSlots(availabilityRules, 14); // 2 weeks ahead
+    
+    // Block time slots that conflict with external events (Google Calendar)
+    this.blockExternalEvents(availableSlots, externalEvents);
     
     const sessions: ScheduledSession[] = [];
     const remainingHours = new Map(sortedProjects.map(p => [p.id, p.estimatedHours]));
@@ -243,12 +251,32 @@ export class SchedulingEngine {
       slot.isAvailable && slot.duration >= requiredDuration
     ) || null;
   }
+  
+  /**
+   * Blocks time slots that conflict with external events (like Google Calendar)
+   */
+  private blockExternalEvents(slots: TimeSlot[], externalEvents: { start: Date; end: Date }[]): void {
+    for (const event of externalEvents) {
+      for (const slot of slots) {
+        if (slot.isAvailable && 
+            isBefore(event.start, slot.end) && 
+            isAfter(event.end, slot.start)) {
+          slot.isAvailable = false;
+        }
+      }
+    }
+  }
 }
 
 /**
  * Main function to schedule projects - clears existing scheduled sessions and creates new ones
+ * Now includes Google Calendar conflict detection
  */
-export const scheduleProjects = async (projects: Project[], availabilityRules: AvailabilityRule[]): Promise<void> => {
+export const scheduleProjects = async (
+  projects: Project[], 
+  availabilityRules: AvailabilityRule[], 
+  googleCalendarEvents: { start: Date; end: Date }[] = []
+): Promise<void> => {
   const engine = new SchedulingEngine();
   
   // Clear existing scheduled sessions (keep completed ones)
@@ -257,8 +285,8 @@ export const scheduleProjects = async (projects: Project[], availabilityRules: A
     .delete()
     .eq('status', 'scheduled');
   
-  // Generate new schedule
-  const newSessions = engine.generateSchedule(projects, availabilityRules);
+  // Generate new schedule with Google Calendar conflicts considered
+  const newSessions = engine.generateSchedule(projects, availabilityRules, googleCalendarEvents);
   
   // Save new sessions to database
   if (newSessions.length > 0) {

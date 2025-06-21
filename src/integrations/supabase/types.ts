@@ -53,8 +53,10 @@ export type Database = {
           expires_at: string | null
           id: string
           is_active: boolean
+          last_sync_at: string | null
           provider: string
           refresh_token: string | null
+          sync_enabled: boolean | null
           updated_at: string
           user_id: string | null
         }
@@ -65,8 +67,10 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean
+          last_sync_at?: string | null
           provider: string
           refresh_token?: string | null
+          sync_enabled?: boolean | null
           updated_at?: string
           user_id?: string | null
         }
@@ -77,8 +81,46 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean
+          last_sync_at?: string | null
           provider?: string
           refresh_token?: string | null
+          sync_enabled?: boolean | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      google_calendar_events: {
+        Row: {
+          calendar_id: string
+          created_at: string
+          end_time: string
+          event_id: string
+          id: string
+          start_time: string
+          summary: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          calendar_id: string
+          created_at?: string
+          end_time: string
+          event_id: string
+          id?: string
+          start_time: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          calendar_id?: string
+          created_at?: string
+          end_time?: string
+          event_id?: string
+          id?: string
+          start_time?: string
+          summary?: string | null
           updated_at?: string
           user_id?: string | null
         }
