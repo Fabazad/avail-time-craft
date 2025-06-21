@@ -10,6 +10,7 @@ interface SortableProjectsListProps {
   projects: Project[];
   scheduledSessions: ScheduledSession[];
   onUpdateProject: (project: Project) => void;
+  onDeleteProject: (projectId: string) => void;
   onReorderProjects: (reorderedProjects: Project[]) => void;
 }
 
@@ -17,6 +18,7 @@ export const SortableProjectsList = ({
   projects, 
   scheduledSessions, 
   onUpdateProject,
+  onDeleteProject,
   onReorderProjects 
 }: SortableProjectsListProps) => {
   const sensors = useSensors(
@@ -63,6 +65,7 @@ export const SortableProjectsList = ({
                   project={project}
                   scheduledSessions={scheduledSessions}
                   onUpdateProject={onUpdateProject}
+                  onDeleteProject={onDeleteProject}
                 />
               ))}
             </div>

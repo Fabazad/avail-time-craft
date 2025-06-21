@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card } from '@/components/ui/card';
@@ -6,15 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Project, ScheduledSession } from '@/types';
 import { updateProjectWithDates } from '@/utils/projectUtils';
 import { format } from 'date-fns';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Edit, Trash2 } from 'lucide-react';
+import { ProjectEditForm } from './ProjectEditForm';
 
 interface SortableProjectItemProps {
   project: Project;
   scheduledSessions: ScheduledSession[];
   onUpdateProject: (project: Project) => void;
+  onDeleteProject: (projectId: string) => void;
 }
 
-export const SortableProjectItem = ({ project, scheduledSessions, onUpdateProject }: SortableProjectItemProps) => {
+export const SortableProjectItem = ({ 
+  project, 
+  scheduledSessions, 
+  onUpdateProject,
+  onDeleteProject 
+}: SortableProjectItemProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  
   const {
     attributes,
     listeners,
@@ -38,6 +48,33 @@ export const SortableProjectItem = ({ project, scheduledSessions, onUpdateProjec
     if (priority === 3) return 'bg-yellow-500';
     return 'bg-green-500';
   };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleUpdate = async (updatedProject: Project) => {
+    await onUpdateProject(updatedProject);
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
+      onDeleteProject(project.id);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <Card className="p-4 bg-white/50 border-blue-100">
+        <ProjectEditForm
+          project={project}
+          onSubmit={handleUpdate}
+          onCancel={() => setIsEditing(false)}
+        />
+      </Card>
+    );
+  }
 
   return (
     <Card 
@@ -63,6 +100,9 @@ export const SortableProjectItem = ({ project, scheduledSessions, onUpdateProjec
             <p className="text-sm text-gray-600">
               {project.estimatedHours}h • Priority {project.priority} • {project.status}
             </p>
+            {project.description && (
+              <p className="text-xs text-gray-500 mt-1">{project.description}</p>
+            )}
             {projectWithDates.startDate && projectWithDates.endDate && (
               <div className="mt-2 text-xs text-gray-500">
                 <div className="flex items-center gap-4">
@@ -80,9 +120,25 @@ export const SortableProjectItem = ({ project, scheduledSessions, onUpdateProjec
             <Button 
               size="sm" 
               variant="outline"
+              onClick={handleEdit}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
               onClick={() => onUpdateProject({...project, status: project.status === 'completed' ? 'pending' : 'completed'})}
             >
               {project.status === 'completed' ? 'Reopen' : 'Complete'}
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={handleDelete}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
             </Button>
           </div>
         </div>

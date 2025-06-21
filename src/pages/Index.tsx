@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { ProjectForm } from '@/components/ProjectForm';
@@ -27,7 +27,8 @@ const Index = () => {
   const { 
     scheduledSessions, 
     loading: sessionsLoading, 
-    completeSession 
+    completeSession,
+    refetch: refetchSessions
   } = useScheduledSessions();
 
   const {
@@ -35,6 +36,14 @@ const Index = () => {
     loading: availabilityLoading,
     updateAvailabilityRules
   } = useAvailability();
+
+  // Trigger recalculation when projects or availability rules change
+  useEffect(() => {
+    // This effect will run when projects or availability rules change
+    // In a real implementation, you would trigger the scheduling engine here
+    console.log('Projects or availability rules changed, should recalculate schedules');
+    refetchSessions();
+  }, [projects.length, availabilityRules.length, refetchSessions]);
 
   const handleCreateProject = async (projectData: {
     name: string;
@@ -49,8 +58,20 @@ const Index = () => {
     }
   };
 
+  const handleUpdateProject = async (updatedProject: any) => {
+    await updateProject(updatedProject);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    await deleteProject(projectId);
+  };
+
   const handleReorderProjects = async (reorderedProjects: any[]) => {
     await updateProjectPriorities(reorderedProjects);
+  };
+
+  const handleUpdateAvailabilityRules = async (rules: any[]) => {
+    await updateAvailabilityRules(rules);
   };
 
   if (projectsLoading || sessionsLoading || availabilityLoading) {
@@ -147,8 +168,8 @@ const Index = () => {
                 projects={projects}
                 scheduledSessions={scheduledSessions}
                 onCompleteSession={completeSession}
-                onUpdateProject={updateProject}
-                onDeleteProject={deleteProject}
+                onUpdateProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
               />
             )}
             
@@ -156,7 +177,8 @@ const Index = () => {
               <SortableProjectsList
                 projects={projects}
                 scheduledSessions={scheduledSessions}
-                onUpdateProject={updateProject}
+                onUpdateProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
                 onReorderProjects={handleReorderProjects}
               />
             )}
@@ -164,7 +186,7 @@ const Index = () => {
             {activeTab === 'availability' && (
               <AvailabilityManager
                 availabilityRules={availabilityRules}
-                onUpdateRules={updateAvailabilityRules}
+                onUpdateRules={handleUpdateAvailabilityRules}
               />
             )}
 

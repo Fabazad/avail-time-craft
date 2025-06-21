@@ -153,6 +153,13 @@ export const useProjects = () => {
   // Delete project
   const deleteProject = async (projectId: string) => {
     try {
+      // First delete any scheduled sessions for this project
+      await supabase
+        .from('scheduled_sessions')
+        .delete()
+        .eq('project_id', projectId);
+
+      // Then delete the project
       const { error } = await supabase
         .from('projects')
         .delete()
