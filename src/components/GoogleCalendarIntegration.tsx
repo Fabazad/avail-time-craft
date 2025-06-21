@@ -1,3 +1,4 @@
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +48,14 @@ export const GoogleCalendarIntegration = () => {
   const connectGoogleCalendar = async () => {
     setConnecting(true);
     try {
+      // Check if user is authenticated first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please log in first to connect your Google Calendar");
+        setConnecting(false);
+        return;
+      }
+
       // Get Google Client ID from Supabase secrets via edge function
       const { data: configData, error: configError } = await supabase.functions.invoke('get-google-config');
       
@@ -104,11 +113,21 @@ export const GoogleCalendarIntegration = () => {
 
           console.log("Processing OAuth callback with code:", code);
 
+          // Get current session to ensure we're authenticated
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            toast.error("Authentication required. Please log in first.");
+            return;
+          }
+
           // Call the edge function to exchange code for tokens
           const { data, error } = await supabase.functions.invoke(
             "google-calendar-auth",
             {
               body: { code, state },
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              }
             }
           );
 
@@ -151,7 +170,6 @@ export const GoogleCalendarIntegration = () => {
     }
   };
 
-  // Disconnect calendar
   const disconnectCalendar = async () => {
     if (!connection) return;
 
