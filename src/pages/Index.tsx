@@ -11,13 +11,13 @@ import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 import { useAvailability } from '@/hooks/useAvailability';
 import { scheduleProjects } from '@/utils/schedulingEngine';
 import { toast } from 'sonner';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@radix-ui/react-tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 
 const Index = () => {
   const [showForm, setShowForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'availability' | 'calendar'>('dashboard');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isRecalculating, setIsRecalculating] = useState(false);
   
   const { 
@@ -148,45 +148,33 @@ const Index = () => {
         </div>
 
         {/* Navigation Tabs */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white/50 backdrop-blur-sm border border-blue-200/50">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
-            <TabsTrigger value="availability">Availability</TabsTrigger>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1">
+            <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              Projects
+            </TabsTrigger>
+            <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              Availability
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              Calendar
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Dashboard
-                  projects={projects}
-                  scheduledSessions={scheduledSessions}
-                  availabilityRules={availabilityRules}
-                />
-                <GoogleCalendarIntegration />
-              </div>
-              
-              {/* Sidebar */}
-              <div className="lg:col-span-1 space-y-6">
-                <div className="bg-white/50 p-4 rounded-lg shadow-lg border border-blue-200/50">
-                  <h2 className="text-lg font-medium text-gray-800 mb-2">Projects</h2>
-                  <SortableProjectsList
-                    projects={projects}
-                    scheduledSessions={scheduledSessions}
-                    onUpdateProject={handleUpdateProject}
-                    onDeleteProject={handleDeleteProject}
-                    onReorderProjects={handleReorderProjects}
-                  />
-                </div>
-                <div className="bg-white/50 p-4 rounded-lg shadow-lg border border-blue-200/50">
-                  <h2 className="text-lg font-medium text-gray-800 mb-2">Availability</h2>
-                  <AvailabilityManager
-                    availabilityRules={availabilityRules}
-                    onUpdateRules={handleUpdateAvailabilityRules}
-                  />
-                </div>
-              </div>
+            <Dashboard
+              projects={projects}
+              scheduledSessions={scheduledSessions}
+              availabilityRules={availabilityRules}
+              onCompleteSession={completeSession}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+            />
+            <div className="mt-6">
+              <GoogleCalendarIntegration />
             </div>
           </TabsContent>
 
@@ -216,6 +204,13 @@ const Index = () => {
             />
           </TabsContent>
         </Tabs>
+
+        {showForm && (
+          <ProjectForm 
+            onSubmit={handleCreateProject}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
       </div>
     </div>
   );
