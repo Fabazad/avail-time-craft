@@ -23,8 +23,6 @@ export class SchedulingEngine {
     const sessions: ScheduledSession[] = [];
     const remainingHours = new Map(sortedProjects.map(p => [p.id, p.estimatedHours]));
     
-    let slotIndex = 0;
-    
     // Schedule projects in priority order
     for (const project of sortedProjects) {
       const hoursNeeded = remainingHours.get(project.id) || 0;
@@ -34,11 +32,10 @@ export class SchedulingEngine {
       let scheduledHours = 0;
       
       // Find suitable time slots for this project
-      while (scheduledHours < hoursNeeded && slotIndex < availableSlots.length) {
+      for (let slotIndex = 0; slotIndex < availableSlots.length && scheduledHours < hoursNeeded; slotIndex++) {
         const slot = availableSlots[slotIndex];
         
         if (!slot.isAvailable) {
-          slotIndex++;
           continue;
         }
         
@@ -61,21 +58,8 @@ export class SchedulingEngine {
         sessions.push(session);
         scheduledHours += sessionDuration;
         
-        // Mark slot as partially or fully used
-        if (sessionDuration >= slot.duration) {
-          slot.isAvailable = false;
-        } else {
-          // Update slot to reflect remaining time
-          slot.start = addHours(slot.start, sessionDuration);
-          slot.duration -= sessionDuration;
-        }
-        
-        if (sessionDuration < slot.duration) {
-          // Don't move to next slot if we only partially used this one
-          continue;
-        }
-        
-        slotIndex++;
+        // Mark slot as used - this was the issue!
+        slot.isAvailable = false;
       }
       
       // Update remaining hours

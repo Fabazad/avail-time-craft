@@ -150,25 +150,30 @@ export const useProjects = () => {
     }
   };
 
-  // Delete project
+  // Delete project - FIXED: Now properly waits for session deletion
   const deleteProject = async (projectId: string) => {
     try {
-      // First delete any scheduled sessions for this project
-      await supabase
+      // First delete any scheduled sessions for this project and WAIT for completion
+      const { error: sessionsError } = await supabase
         .from('scheduled_sessions')
         .delete()
         .eq('project_id', projectId);
 
+      if (sessionsError) {
+        console.error('Error deleting sessions:', sessionsError);
+        throw sessionsError;
+      }
+
       // Then delete the project
-      const { error } = await supabase
+      const { error: projectError } = await supabase
         .from('projects')
         .delete()
         .eq('id', projectId);
 
-      if (error) throw error;
+      if (projectError) throw projectError;
 
       setProjects(prev => prev.filter(project => project.id !== projectId));
-      toast.success('Project deleted successfully');
+      toast.success('Project and associated sessions deleted successfully');
     } catch (error) {
       console.error('Error deleting project:', error);
       toast.error('Failed to delete project');
