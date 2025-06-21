@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -17,6 +16,7 @@ import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegratio
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { AuthGuard } from '@/components/AuthGuard';
 import { UserMenu } from '@/components/UserMenu';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
@@ -121,104 +121,106 @@ const IndexContent = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="container mx-auto p-6 space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">
-              Project Scheduler
-            </h1>
-            <p className="text-gray-600">
-              Manage your projects and schedule work sessions efficiently
-              {isRecalculating && (
-                <span className="ml-2 text-blue-600 text-sm">
-                  <span className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></span>
-                  Updating schedule...
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            {activeTab === 'projects' && (
-              <Button 
-                onClick={() => setShowForm(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                New Project
-              </Button>
-            )}
-            <UserMenu />
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1">
-            <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              Projects
-            </TabsTrigger>
-            <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              Availability
-            </TabsTrigger>
-            <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              Calendar
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="dashboard">
-            <Dashboard
-              projects={projects}
-              scheduledSessions={scheduledSessions}
-              availabilityRules={availabilityRules}
-              onCompleteSession={completeSession}
-              onUpdateProject={handleUpdateProject}
-              onDeleteProject={handleDeleteProject}
-            />
-            <div className="mt-6">
-              <GoogleCalendarIntegration />
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="container mx-auto p-6 space-y-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">
+                Project Scheduler
+              </h1>
+              <p className="text-gray-600">
+                Manage your projects and schedule work sessions efficiently
+                {isRecalculating && (
+                  <span className="ml-2 text-blue-600 text-sm">
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></span>
+                    Updating schedule...
+                  </span>
+                )}
+              </p>
             </div>
-          </TabsContent>
+            <div className="flex items-center gap-4">
+              {activeTab === 'projects' && (
+                <Button 
+                  onClick={() => setShowForm(true)}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  New Project
+                </Button>
+              )}
+              <UserMenu />
+            </div>
+          </div>
 
-          <TabsContent value="projects">
-            <SortableProjectsList
-              projects={projects}
-              scheduledSessions={scheduledSessions}
-              onUpdateProject={handleUpdateProject}
-              onDeleteProject={handleDeleteProject}
-              onReorderProjects={handleReorderProjects}
+          {/* Navigation Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1">
+              <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                Projects
+              </TabsTrigger>
+              <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                Availability
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                Calendar
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="dashboard">
+              <Dashboard
+                projects={projects}
+                scheduledSessions={scheduledSessions}
+                availabilityRules={availabilityRules}
+                onCompleteSession={completeSession}
+                onUpdateProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
+              />
+              <div className="mt-6">
+                <GoogleCalendarIntegration />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="projects">
+              <SortableProjectsList
+                projects={projects}
+                scheduledSessions={scheduledSessions}
+                onUpdateProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
+                onReorderProjects={handleReorderProjects}
+              />
+            </TabsContent>
+
+            <TabsContent value="availability">
+              <AvailabilityManager
+                availabilityRules={availabilityRules}
+                onUpdateRules={handleUpdateAvailabilityRules}
+              />
+            </TabsContent>
+
+            <TabsContent value="calendar">
+              <CalendarView
+                projects={projects}
+                scheduledSessions={scheduledSessions}
+                availabilityRules={availabilityRules}
+                onCompleteSession={completeSession}
+              />
+            </TabsContent>
+          </Tabs>
+
+          {showForm && (
+            <ProjectForm 
+              onSubmit={handleCreateProject}
+              onCancel={() => setShowForm(false)}
             />
-          </TabsContent>
-
-          <TabsContent value="availability">
-            <AvailabilityManager
-              availabilityRules={availabilityRules}
-              onUpdateRules={handleUpdateAvailabilityRules}
-            />
-          </TabsContent>
-
-          <TabsContent value="calendar">
-            <CalendarView
-              projects={projects}
-              scheduledSessions={scheduledSessions}
-              availabilityRules={availabilityRules}
-              onCompleteSession={completeSession}
-            />
-          </TabsContent>
-        </Tabs>
-
-        {showForm && (
-          <ProjectForm 
-            onSubmit={handleCreateProject}
-            onCancel={() => setShowForm(false)}
-          />
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
