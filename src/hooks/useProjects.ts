@@ -11,7 +11,7 @@ export const useProjects = () => {
   // Fetch projects from database
   const fetchProjects = async () => {
     try {
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('priority', { ascending: true });
