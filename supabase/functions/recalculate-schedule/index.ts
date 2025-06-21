@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -60,8 +59,8 @@ serve(async (req) => {
     // STEP 3: Fetch external calendar events
     const googleCalendarEvents = await fetchGoogleCalendarEvents(supabaseClient);
 
-    // STEP 4: Generate new schedule using proper engine logic
-    const newSessions = generateScheduleWithEngine(projects, availabilityRules, googleCalendarEvents);
+    // STEP 4: Generate new schedule using while loop approach
+    const newSessions = generateScheduleWithWhileLoop(projects, availabilityRules, googleCalendarEvents);
 
     // STEP 5: Save and create calendar events
     const { successCount, errorCount } = await saveAndCreateCalendarEvents(
@@ -193,13 +192,13 @@ async function fetchGoogleCalendarEvents(supabaseClient: any) {
   return [];
 }
 
-// Complete scheduling engine implementation matching the original frontend version
-function generateScheduleWithEngine(
+// NEW: While loop approach for scheduling
+function generateScheduleWithWhileLoop(
   projects: any[],
   availabilityRules: any[],
   externalEvents: any[]
 ): ScheduledSession[] {
-  console.log("=== SCHEDULING ENGINE DEBUG ===");
+  console.log("=== WHILE LOOP SCHEDULING ENGINE ===");
   console.log("Projects:", projects.length);
   console.log("Availability rules:", availabilityRules.length);
   console.log("External events:", externalEvents.length);
@@ -207,219 +206,155 @@ function generateScheduleWithEngine(
   const activeProjects = projects.filter((p) => p.status !== "completed");
   const sortedProjects = sortProjectsByPriority(activeProjects);
 
-  console.log("Active projects after filtering:", activeProjects.length);
-  
-  if (activeProjects.length === 0) {
-    console.log("No active projects to schedule");
+  if (activeProjects.length === 0 || availabilityRules.length === 0) {
+    console.log("No active projects or availability rules");
     return [];
-  }
-
-  if (availabilityRules.length === 0) {
-    console.log("No availability rules found");
-    return [];
-  }
-
-  const totalHours = sortedProjects.reduce((sum, p) => sum + p.estimated_hours, 0);
-  console.log("Total hours to schedule:", totalHours);
-  
-  const avgHoursPerWeek = calculateAverageHoursPerWeek(availabilityRules);
-  console.log("Average hours per week from availability:", avgHoursPerWeek);
-  
-  const weeksNeeded = Math.max(8, Math.ceil(totalHours / Math.max(avgHoursPerWeek, 1)) + 2);
-  console.log("Weeks needed for scheduling:", weeksNeeded);
-
-  const availableSlots = generateAvailableSlots(availabilityRules, weeksNeeded * 7);
-  console.log("Generated available slots:", availableSlots.length);
-  
-  // Debug: Log some example slots
-  availableSlots.slice(0, 5).forEach((slot, index) => {
-    console.log(`Slot ${index + 1}: ${slot.start.toISOString()} - ${slot.end.toISOString()}, duration: ${slot.duration}h, available: ${slot.isAvailable}`);
-  });
-  
-  // Only process external events if they exist and are valid
-  const validExternalEvents = externalEvents.filter(event => 
-    event && event.start && event.end && 
-    event.start instanceof Date && event.end instanceof Date &&
-    !isNaN(event.start.getTime()) && !isNaN(event.end.getTime())
-  );
-  
-  console.log("Valid external events to process:", validExternalEvents.length);
-  
-  if (validExternalEvents.length > 0) {
-    console.log("Blocking external calendar events from scheduling...");
-    blockExternalEvents(availableSlots, validExternalEvents);
-    
-    const availableSlotsAfterBlocking = availableSlots.filter(slot => slot.isAvailable);
-    console.log("Available slots after blocking external events:", availableSlotsAfterBlocking.length);
   }
 
   const sessions: ScheduledSession[] = [];
-  const remainingHours = new Map(sortedProjects.map((p) => [p.id, p.estimated_hours]));
-
-  // Schedule projects in priority order
+  
+  // Process each project in priority order
   for (const project of sortedProjects) {
-    const hoursNeeded = remainingHours.get(project.id) || 0;
-    console.log(`Processing project ${project.name}, needs ${hoursNeeded} hours`);
-
-    if (hoursNeeded <= 0) continue;
-
-    let scheduledHours = 0;
-
-    // Find suitable time slots for this project
-    for (let slotIndex = 0; slotIndex < availableSlots.length && scheduledHours < hoursNeeded; slotIndex++) {
-      const slot = availableSlots[slotIndex];
-
-      if (!slot.isAvailable) {
-        continue;
-      }
-
-      // Calculate session duration (use full slot or remaining hours, whichever is smaller)
-      const sessionDuration = Math.min(slot.duration, hoursNeeded - scheduledHours);
-
-      // Create potential session
-      const sessionStart = slot.start;
-      const sessionEnd = new Date(slot.start.getTime() + sessionDuration * 60 * 60 * 1000);
-
-      // Double-check for conflicts with valid external events
-      if (validExternalEvents.length > 0) {
-        const hasConflict = hasConflictWithExternalEvents(
-          sessionStart,
-          sessionEnd,
-          validExternalEvents
-        );
-        if (hasConflict) {
-          console.log(`Conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
-          slot.isAvailable = false;
+    let remainingHours = project.estimated_hours;
+    console.log(`\n=== Processing project: ${project.name} (${remainingHours}h needed) ===`);
+    
+    let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Start from today
+    
+    // While loop to find slots until all hours are scheduled
+    while (remainingHours > 0) {
+      const dayOfWeek = currentDate.getDay();
+      
+      // Check if current day matches any availability rule
+      const applicableRule = availabilityRules.find(rule => 
+        rule.is_active && rule.day_of_week.includes(dayOfWeek)
+      );
+      
+      if (applicableRule) {
+        console.log(`Checking ${currentDate.toDateString()} (day ${dayOfWeek})`);
+        
+        // Create potential session for this day
+        const startTime = parseTime(applicableRule.start_time);
+        const endTime = parseTime(applicableRule.end_time);
+        
+        const sessionStart = new Date(currentDate);
+        sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
+        
+        const sessionEnd = new Date(currentDate);
+        sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
+        
+        // Skip if slot is in the past
+        if (sessionEnd <= new Date()) {
+          console.log(`Skipping past slot: ${sessionStart.toISOString()}`);
+          currentDate.setDate(currentDate.getDate() + 1);
           continue;
         }
+        
+        // Adjust start time if it's in the past
+        if (sessionStart < new Date()) {
+          const now = new Date();
+          sessionStart.setTime(now.getTime());
+          // Round up to next 15-minute interval
+          const minutes = sessionStart.getMinutes();
+          const roundedMinutes = Math.ceil(minutes / 15) * 15;
+          sessionStart.setMinutes(roundedMinutes, 0, 0);
+        }
+        
+        // Calculate session duration
+        const availableDuration = (sessionEnd.getTime() - sessionStart.getTime()) / (1000 * 60 * 60);
+        const sessionDuration = Math.min(availableDuration, remainingHours);
+        
+        if (sessionDuration > 0) {
+          const actualSessionEnd = new Date(sessionStart.getTime() + sessionDuration * 60 * 60 * 1000);
+          
+          // Check for conflicts with external events
+          const hasConflict = checkConflictWithExternalEvents(sessionStart, actualSessionEnd, externalEvents);
+          
+          if (!hasConflict) {
+            // No conflict - create the session
+            const session: ScheduledSession = {
+              id: `${project.id}-${sessions.length}`,
+              projectId: project.id,
+              projectName: project.name,
+              startTime: sessionStart,
+              endTime: actualSessionEnd,
+              duration: sessionDuration,
+              status: "scheduled",
+              priority: project.priority,
+              color: getProjectColor(project.id),
+            };
+            
+            sessions.push(session);
+            remainingHours -= sessionDuration;
+            
+            console.log(`✅ Scheduled: ${sessionStart.toISOString()} - ${actualSessionEnd.toISOString()} (${sessionDuration}h)`);
+            console.log(`Remaining hours: ${remainingHours}h`);
+          } else {
+            console.log(`❌ Conflict detected for: ${sessionStart.toISOString()} - ${actualSessionEnd.toISOString()}`);
+          }
+        }
       }
-
-      // Create session
-      const session: ScheduledSession = {
-        id: `${project.id}-${sessions.length}`,
-        projectId: project.id,
-        projectName: project.name,
-        startTime: sessionStart,
-        endTime: sessionEnd,
-        duration: sessionDuration,
-        status: "scheduled",
-        priority: project.priority,
-        color: getProjectColor(project.id),
-      };
-
-      sessions.push(session);
-      scheduledHours += sessionDuration;
-
-      // Mark slot as used
-      slot.isAvailable = false;
-
-      console.log(`Scheduled session for ${project.name}: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}, duration: ${sessionDuration}h`);
+      
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+      
+      // Safety check to prevent infinite loops (max 365 days ahead)
+      const maxDate = new Date();
+      maxDate.setDate(maxDate.getDate() + 365);
+      if (currentDate > maxDate) {
+        console.log(`⚠️ Reached maximum scheduling horizon. ${remainingHours}h remaining for ${project.name}`);
+        break;
+      }
     }
-
-    // Update remaining hours
-    const remaining = hoursNeeded - scheduledHours;
-    remainingHours.set(project.id, remaining);
     
-    if (remaining > 0) {
-      console.log(`Warning: Could not schedule all hours for ${project.name}. Remaining: ${remaining}h`);
+    if (remainingHours > 0) {
+      console.log(`⚠️ Could not schedule all hours for ${project.name}. Remaining: ${remainingHours}h`);
+    } else {
+      console.log(`✅ Successfully scheduled all hours for ${project.name}`);
     }
   }
-
-  console.log(`Generated ${sessions.length} total sessions`);
+  
+  console.log(`\n=== SCHEDULING COMPLETE ===`);
+  console.log(`Total sessions created: ${sessions.length}`);
   return sessions;
+}
+
+function checkConflictWithExternalEvents(sessionStart: Date, sessionEnd: Date, externalEvents: any[]): boolean {
+  if (!externalEvents || externalEvents.length === 0) return false;
+  
+  for (const event of externalEvents) {
+    if (!event.start || !event.end) continue;
+    
+    // Skip all-day events (they typically don't conflict with specific time slots)
+    const eventStart = new Date(event.start);
+    const eventEnd = new Date(event.end);
+    
+    // Check if it's an all-day event (exactly 24 hours or more, starting at midnight)
+    const isAllDay = (
+      eventStart.getHours() === 0 && 
+      eventStart.getMinutes() === 0 && 
+      eventStart.getSeconds() === 0 &&
+      (eventEnd.getTime() - eventStart.getTime()) >= 24 * 60 * 60 * 1000
+    );
+    
+    if (isAllDay) {
+      console.log(`Skipping all-day event: ${event.start} - ${event.end}`);
+      continue;
+    }
+    
+    // Check for overlap with the session
+    const hasOverlap = sessionStart < eventEnd && eventStart < sessionEnd;
+    if (hasOverlap) {
+      console.log(`Conflict with event: ${event.start} - ${event.end}`);
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 function sortProjectsByPriority(projects: any[]): any[] {
   return [...projects].sort((a, b) => a.priority - b.priority);
-}
-
-function calculateAverageHoursPerWeek(rules: any[]): number {
-  const activeRules = rules.filter((rule) => rule.is_active);
-  if (activeRules.length === 0) return 0;
-
-  let totalHoursPerWeek = 0;
-  for (const rule of activeRules) {
-    const startTime = parseTime(rule.start_time);
-    const endTime = parseTime(rule.end_time);
-    const hoursPerSession = endTime.hours - startTime.hours + (endTime.minutes - startTime.minutes) / 60;
-    const sessionsPerWeek = rule.day_of_week.length;
-    totalHoursPerWeek += hoursPerSession * sessionsPerWeek;
-    
-    console.log(`Rule ${rule.name}: ${hoursPerSession}h per session, ${sessionsPerWeek} days per week = ${hoursPerSession * sessionsPerWeek}h per week`);
-  }
-  return totalHoursPerWeek;
-}
-
-function generateAvailableSlots(rules: any[], daysAhead: number): TimeSlot[] {
-  const slots: TimeSlot[] = [];
-  const startDate = new Date();
-  
-  console.log(`Generating slots for ${daysAhead} days ahead starting from ${startDate.toISOString()}`);
-
-  for (let i = 0; i < daysAhead; i++) {
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + i);
-    currentDate.setHours(0, 0, 0, 0);
-    
-    const dayOfWeek = currentDate.getDay();
-    
-    // Find applicable rules for this day
-    const applicableRules = rules.filter(
-      (rule) => rule.is_active && rule.day_of_week.includes(dayOfWeek)
-    );
-
-    if (applicableRules.length > 0) {
-      console.log(`Day ${i} (${dayOfWeek}): Found ${applicableRules.length} applicable rules`);
-    }
-
-    // Create slots for each applicable rule
-    for (const rule of applicableRules) {
-      const startTime = parseTime(rule.start_time);
-      const endTime = parseTime(rule.end_time);
-
-      let slotStart = new Date(currentDate);
-      slotStart.setHours(startTime.hours, startTime.minutes, 0, 0);
-      
-      const slotEnd = new Date(currentDate);
-      slotEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
-
-      // Skip slots that are entirely in the past
-      if (slotEnd <= new Date()) {
-        console.log(`Skipping past slot: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
-        continue;
-      }
-
-      // Adjust start time if it's in the past
-      if (slotStart < new Date()) {
-        slotStart = new Date();
-        // Round up to next 15-minute interval for cleaner scheduling
-        const minutes = slotStart.getMinutes();
-        const roundedMinutes = Math.ceil(minutes / 15) * 15;
-        slotStart.setMinutes(roundedMinutes, 0, 0);
-        console.log(`Adjusted past start time to: ${slotStart.toISOString()}`);
-      }
-
-      // Create slot if there's still time available
-      if (slotStart < slotEnd) {
-        const duration = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60 * 60);
-
-        slots.push({
-          start: slotStart,
-          end: slotEnd,
-          duration: duration,
-          isAvailable: true,
-        });
-        
-        console.log(`Created slot: ${slotStart.toISOString()} - ${slotEnd.toISOString()}, duration: ${duration}h`);
-      }
-    }
-  }
-
-  // Sort slots by start time
-  const sortedSlots = slots.sort((a, b) => a.start.getTime() - b.start.getTime());
-  console.log(`Total slots generated: ${sortedSlots.length}`);
-  
-  return sortedSlots;
 }
 
 function parseTime(timeString: string): { hours: number; minutes: number } {
@@ -431,54 +366,6 @@ function getProjectColor(projectId: string): string {
   const colors = ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#06B6D4", "#84CC16", "#F97316"];
   const index = parseInt(projectId.slice(-1)) || 0;
   return colors[index % colors.length];
-}
-
-function hasConflictWithExternalEvents(
-  sessionStart: Date,
-  sessionEnd: Date,
-  externalEvents: any[]
-): boolean {
-  if (!externalEvents || externalEvents.length === 0) return false;
-  
-  return externalEvents.some((event) => {
-    if (!event.start || !event.end) return false;
-    return sessionStart < event.end && event.start < sessionEnd;
-  });
-}
-
-function blockExternalEvents(slots: TimeSlot[], externalEvents: any[]): void {
-  if (!externalEvents || externalEvents.length === 0) return;
-
-  console.log(`Processing ${externalEvents.length} external events for slot blocking...`);
-
-  let totalBlockedSlots = 0;
-  
-  for (const event of externalEvents) {
-    if (!event.start || !event.end) {
-      console.warn("Skipping invalid event:", event);
-      continue;
-    }
-
-    let blockedCount = 0;
-    for (const slot of slots) {
-      if (!slot.isAvailable) continue;
-
-      // Check if the slot overlaps with the external event
-      const overlaps = slot.start < event.end && event.start < slot.end;
-
-      if (overlaps) {
-        slot.isAvailable = false;
-        blockedCount++;
-        totalBlockedSlots++;
-      }
-    }
-    
-    if (blockedCount > 0) {
-      console.log(`Blocked ${blockedCount} slots for event: ${event.start.toISOString()} - ${event.end.toISOString()}`);
-    }
-  }
-  
-  console.log(`Total slots blocked by external events: ${totalBlockedSlots}`);
 }
 
 async function saveAndCreateCalendarEvents(supabaseClient: any, userId: string, sessions: ScheduledSession[]) {
