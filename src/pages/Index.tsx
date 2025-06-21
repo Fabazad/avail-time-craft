@@ -14,8 +14,9 @@ import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { AutoAuth } from '@/components/AutoAuth';
 
-const Index = () => {
+const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -213,6 +214,14 @@ const Index = () => {
         )}
       </div>
     </div>
+  );
+};
+
+const Index = () => {
+  return (
+    <AutoAuth>
+      <IndexContent />
+    </AutoAuth>
   );
 };
 
