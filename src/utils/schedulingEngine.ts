@@ -1,4 +1,3 @@
-
 import { Project, AvailabilityRule, ScheduledSession, TimeSlot } from '@/types';
 import { startOfDay, addDays, addHours, addMinutes, isBefore, isAfter, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +14,11 @@ export class SchedulingEngine {
     availabilityRules: AvailabilityRule[], 
     externalEvents: { start: Date; end: Date }[] = []
   ): ScheduledSession[] {
+    console.log('=== SCHEDULING DEBUG ===');
+    console.log('Projects:', projects.length);
+    console.log('Availability rules:', availabilityRules.length);
+    console.log('External events received:', externalEvents ? externalEvents.length : 'null/undefined');
+    
     const activeProjects = projects.filter(p => p.status !== 'completed');
     const sortedProjects = this.sortProjectsByPriority(activeProjects);
     
@@ -24,13 +28,20 @@ export class SchedulingEngine {
     const weeksNeeded = Math.max(8, Math.ceil(totalHours / Math.max(avgHoursPerWeek, 1)) + 2);
     
     const availableSlots = this.generateAvailableSlots(availabilityRules, weeksNeeded * 7);
+    console.log('Generated slots:', availableSlots.length);
     
     // Only block time slots if there are actual external events
-    if (externalEvents && externalEvents.length > 0) {
-      console.log(`Blocking ${externalEvents.length} external calendar events from scheduling`);
-      this.blockExternalEventsImproved(availableSlots, externalEvents);
+    const validExternalEvents = externalEvents && Array.isArray(externalEvents) ? externalEvents : [];
+    console.log('Valid external events to process:', validExternalEvents.length);
+    
+    if (validExternalEvents.length > 0) {
+      console.log('Blocking external calendar events from scheduling...');
+      validExternalEvents.forEach((event, index) => {
+        console.log(`Event ${index + 1}: ${event.start?.toISOString()} - ${event.end?.toISOString()}`);
+      });
+      this.blockExternalEventsImproved(availableSlots, validExternalEvents);
     } else {
-      console.log('No external calendar events to avoid - scheduling optimally');
+      console.log('No external calendar events found - scheduling from earliest available slots');
     }
     
     const sessions: ScheduledSession[] = [];
@@ -60,10 +71,10 @@ export class SchedulingEngine {
         const sessionEnd = addHours(slot.start, sessionDuration);
         
         // Only check for conflicts if there are external events
-        if (externalEvents && externalEvents.length > 0) {
-          const hasConflict = this.hasConflictWithExternalEvents(sessionStart, sessionEnd, externalEvents);
+        if (validExternalEvents.length > 0) {
+          const hasConflict = this.hasConflictWithExternalEvents(sessionStart, sessionEnd, validExternalEvents);
           if (hasConflict) {
-            console.log(`Skipping slot due to conflict: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
+            console.log(`Conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
             slot.isAvailable = false;
             continue;
           }
@@ -87,11 +98,16 @@ export class SchedulingEngine {
         
         // Mark slot as used
         slot.isAvailable = false;
+        
+        console.log(`Scheduled session for ${project.name}: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
       }
       
       // Update remaining hours
       remainingHours.set(project.id, hoursNeeded - scheduledHours);
     }
+    
+    console.log(`Generated ${sessions.length} total sessions`);
+    console.log('=== END SCHEDULING DEBUG ===');
     
     return sessions;
   }
@@ -110,6 +126,12 @@ export class SchedulingEngine {
     }
     
     return externalEvents.some(event => {
+      // Ensure event dates are valid
+      if (!event.start || !event.end) {
+        console.warn('Invalid event detected:', event);
+        return false;
+      }
+      
       // Check if the session overlaps with any external event
       // Two time ranges overlap if: start1 < end2 AND start2 < end1
       const overlaps = sessionStart < event.end && event.start < sessionEnd;
@@ -320,9 +342,18 @@ export class SchedulingEngine {
       return;
     }
     
+    console.log(`Processing ${externalEvents.length} external events for slot blocking...`);
+    
     for (const event of externalEvents) {
+      // Validate event data
+      if (!event.start || !event.end) {
+        console.warn('Skipping invalid event:', event);
+        continue;
+      }
+      
       console.log(`Blocking external event: ${event.start.toISOString()} - ${event.end.toISOString()}`);
       
+      let blockedCount = 0;
       for (const slot of slots) {
         if (!slot.isAvailable) continue;
         
@@ -331,10 +362,12 @@ export class SchedulingEngine {
         const overlaps = slot.start < event.end && event.start < slot.end;
         
         if (overlaps) {
-          console.log(`Blocking slot: ${slot.start.toISOString()} - ${slot.end.toISOString()}`);
+          console.log(`  Blocking slot: ${slot.start.toISOString()} - ${slot.end.toISOString()}`);
           slot.isAvailable = false;
+          blockedCount++;
         }
       }
+      console.log(`  Blocked ${blockedCount} slots for this event`);
     }
   }
   
@@ -353,6 +386,10 @@ export const scheduleProjects = async (
   projects: Project[], 
   availabilityRules: AvailabilityRule[]
 ): Promise<void> => {
+  console.log('=== SCHEDULE PROJECTS START ===');
+  console.log('Input projects:', projects.length);
+  console.log('Input availability rules:', availabilityRules.length);
+  
   const engine = new SchedulingEngine();
   
   // Fetch Google Calendar events to avoid conflicts - improved fetching
@@ -362,6 +399,8 @@ export const scheduleProjects = async (
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
+      console.log('User authenticated, checking for calendar connection...');
+      
       // Check if user has an active calendar connection
       const { data: connection } = await supabase
         .from('calendar_connections')
@@ -379,6 +418,8 @@ export const scheduleProjects = async (
         const endDate = new Date();
         endDate.setMonth(endDate.getMonth() + 3); // Look 3 months ahead
         
+        console.log(`Fetching calendar events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        
         const { data: events, error } = await supabase
           .from('google_calendar_events')
           .select('start_time, end_time, summary')
@@ -388,24 +429,32 @@ export const scheduleProjects = async (
         
         if (error) {
           console.error('Error fetching Google Calendar events:', error);
-        } else if (events && events.length > 0) {
-          googleCalendarEvents = events.map(event => ({
-            start: new Date(event.start_time),
-            end: new Date(event.end_time)
-          }));
-          
-          console.log(`Successfully fetched ${googleCalendarEvents.length} Google Calendar events for conflict avoidance`);
-          
-          // Log events for debugging
-          googleCalendarEvents.forEach((event, index) => {
-            console.log(`Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`);
-          });
         } else {
-          console.log('No Google Calendar events found in the specified time range');
+          console.log(`Raw events from database: ${events ? events.length : 0}`);
+          
+          if (events && events.length > 0) {
+            googleCalendarEvents = events
+              .filter(event => event.start_time && event.end_time) // Filter out invalid events
+              .map(event => ({
+                start: new Date(event.start_time),
+                end: new Date(event.end_time)
+              }));
+            
+            console.log(`Successfully processed ${googleCalendarEvents.length} valid Google Calendar events for conflict avoidance`);
+            
+            // Log events for debugging
+            googleCalendarEvents.forEach((event, index) => {
+              console.log(`Calendar Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`);
+            });
+          } else {
+            console.log('No Google Calendar events found in the specified time range');
+          }
         }
       } else {
-        console.log('No active Google Calendar connection found');
+        console.log('No active Google Calendar connection found - scheduling without external conflicts');
       }
+    } else {
+      console.log('User not authenticated - scheduling without external conflicts');
     }
   } catch (error) {
     console.error('Error fetching Google Calendar events for conflict avoidance:', error);
@@ -484,6 +533,7 @@ export const scheduleProjects = async (
   }
   
   // Generate new schedule with Google Calendar conflicts considered
+  console.log(`Passing ${googleCalendarEvents.length} external events to scheduling engine`);
   const newSessions = engine.generateSchedule(projects, availabilityRules, googleCalendarEvents);
   
   console.log(`Generated ${newSessions.length} sessions for ${projects.length} projects, successfully avoiding ${googleCalendarEvents.length} Google Calendar conflicts`);
@@ -583,4 +633,6 @@ export const scheduleProjects = async (
       // Don't throw here - sessions are created successfully, calendar events are optional
     }
   }
+  
+  console.log('=== SCHEDULE PROJECTS END ===');
 };
