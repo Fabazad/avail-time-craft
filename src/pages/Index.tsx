@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -14,7 +15,8 @@ import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
-import { AutoAuth } from '@/components/AutoAuth';
+import { AuthGuard } from '@/components/AuthGuard';
+import { UserMenu } from '@/components/UserMenu';
 
 const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
@@ -137,15 +139,18 @@ const IndexContent = () => {
               )}
             </p>
           </div>
-          {activeTab === 'projects' && (
-            <Button 
-              onClick={() => setShowForm(true)}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              New Project
-            </Button>
-          )}
+          <div className="flex items-center gap-4">
+            {activeTab === 'projects' && (
+              <Button 
+                onClick={() => setShowForm(true)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                New Project
+              </Button>
+            )}
+            <UserMenu />
+          </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -219,9 +224,9 @@ const IndexContent = () => {
 
 const Index = () => {
   return (
-    <AutoAuth>
+    <AuthGuard>
       <IndexContent />
-    </AutoAuth>
+    </AuthGuard>
   );
 };
 
