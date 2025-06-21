@@ -82,9 +82,13 @@ export const useProjects = () => {
     }
   };
 
-  // Update project
+  // Update project - Enhanced to return whether estimated hours changed
   const updateProject = async (updatedProject: Project) => {
     try {
+      // Get the current project to check if estimated hours changed
+      const currentProject = projects.find(p => p.id === updatedProject.id);
+      const estimatedHoursChanged = currentProject && currentProject.estimatedHours !== updatedProject.estimatedHours;
+
       const { error } = await supabase
         .from('projects')
         .update({
@@ -106,6 +110,9 @@ export const useProjects = () => {
       );
       
       toast.success('Project updated successfully');
+      
+      // Return whether estimated hours changed to trigger recalculation
+      return { estimatedHoursChanged };
     } catch (error) {
       console.error('Error updating project:', error);
       toast.error('Failed to update project');

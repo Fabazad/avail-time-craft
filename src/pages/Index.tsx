@@ -94,7 +94,17 @@ const IndexContent = () => {
   };
 
   const handleUpdateProject = async (updatedProject: any) => {
-    await updateProject(updatedProject);
+    try {
+      const result = await updateProject(updatedProject);
+      
+      // If estimated hours changed, recalculate the schedule immediately
+      if (result?.estimatedHoursChanged) {
+        console.log('Estimated hours changed, recalculating schedule...');
+        await recalculateSchedule();
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
   const handleDeleteProject = async (projectId: string) => {
