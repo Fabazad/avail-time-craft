@@ -31,6 +31,8 @@ serve(async (req) => {
       throw new Error('User not authenticated')
     }
 
+    console.log('Exchanging authorization code for tokens...')
+
     // Exchange authorization code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -42,17 +44,20 @@ serve(async (req) => {
         client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
         code,
         grant_type: 'authorization_code',
-        redirect_uri: `${Deno.env.get('SUPABASE_URL')}/functions/v1/google-calendar-auth`,
+        redirect_uri: Deno.env.get('SUPABASE_URL')?.replace('/supabase', '') ?? '',
       }),
     })
 
     const tokens = await tokenResponse.json()
+    console.log('Token response:', { success: tokenResponse.ok, hasAccessToken: !!tokens.access_token })
 
     if (!tokenResponse.ok) {
-      throw new Error(`Token exchange failed: ${tokens.error_description}`)
+      console.error('Token exchange failed:', tokens)
+      throw new Error(`Token exchange failed: ${tokens.error_description || tokens.error}`)
     }
 
     // Get user's calendar list
+    console.log('Fetching user calendars...')
     const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -60,7 +65,20 @@ serve(async (req) => {
     })
 
     const calendars = await calendarResponse.json()
+    console.log('Calendar response:', { success: calendarResponse.ok, calendarCount: calendars.items?.length })
+
+    if (!calendarResponse.ok) {
+      console.error('Calendar fetch failed:', calendars)
+      throw new Error(`Failed to fetch calendars: ${calendars.error?.message}`)
+    }
+
     const primaryCalendar = calendars.items?.find((cal: any) => cal.primary) || calendars.items?.[0]
+
+    if (!primaryCalendar) {
+      throw new Error('No calendar found')
+    }
+
+    console.log('Storing connection in database...')
 
     // Store connection in database
     const { error } = await supabaseClient
@@ -71,24 +89,27 @@ serve(async (req) => {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_at: new Date(Date.now() + (tokens.expires_in * 1000)).toISOString(),
-        calendar_id: primaryCalendar?.id,
+        calendar_id: primaryCalendar.id,
         is_active: true,
         sync_enabled: true,
       })
 
     if (error) {
+      console.error('Database error:', error)
       throw error
     }
 
+    console.log('Connection stored successfully')
+
     return new Response(
-      JSON.stringify({ success: true, calendar_id: primaryCalendar?.id }),
+      JSON.stringify({ success: true, calendar_id: primaryCalendar.id }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
     )
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Google Calendar Auth Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
