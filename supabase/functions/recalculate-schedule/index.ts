@@ -47,13 +47,12 @@ serve(async (req) => {
       throw new Error('User not authenticated')
     }
 
-    // Get request body to extract timezone
-    const body = await req.json().catch(() => ({}));
-    const userTimezone = body.timezone || 'UTC';
+    // Always use Paris timezone
+    const parisTimezone = 'Europe/Paris';
     
     console.log("=== STARTING SCHEDULE RECALCULATION ===");
     console.log("User ID:", user.id);
-    console.log("User timezone:", userTimezone);
+    console.log("Using Paris timezone:", parisTimezone);
 
     // STEP 1: Clean up existing sessions and calendar events
     await cleanupExistingSessions(supabaseClient, user.id);
@@ -64,8 +63,8 @@ serve(async (req) => {
     // STEP 3: Fetch external calendar events
     const googleCalendarEvents = await fetchGoogleCalendarEvents(supabaseClient);
 
-    // STEP 4: Generate new schedule using while loop approach with timezone
-    const newSessions = generateScheduleWithWhileLoop(projects, availabilityRules, googleCalendarEvents, userTimezone);
+    // STEP 4: Generate new schedule using while loop approach with Paris timezone
+    const newSessions = generateScheduleWithWhileLoop(projects, availabilityRules, googleCalendarEvents, parisTimezone);
 
     // STEP 5: Save and create calendar events
     const { successCount, errorCount } = await saveAndCreateCalendarEvents(
@@ -197,18 +196,18 @@ async function fetchGoogleCalendarEvents(supabaseClient: any) {
   return [];
 }
 
-// Updated: While loop approach for scheduling with timezone support
+// Updated: While loop approach for scheduling with Paris timezone
 function generateScheduleWithWhileLoop(
   projects: any[],
   availabilityRules: any[],
   externalEvents: any[],
-  userTimezone: string = 'UTC'
+  parisTimezone: string = 'Europe/Paris'
 ): ScheduledSession[] {
   console.log("=== WHILE LOOP SCHEDULING ENGINE ===");
   console.log("Projects:", projects.length);
   console.log("Availability rules:", availabilityRules.length);
   console.log("External events:", externalEvents.length);
-  console.log("User timezone:", userTimezone);
+  console.log("Using Paris timezone:", parisTimezone);
 
   const activeProjects = projects.filter((p) => p.status !== "completed");
   const sortedProjects = sortProjectsByPriority(activeProjects);
@@ -225,15 +224,13 @@ function generateScheduleWithWhileLoop(
     let remainingHours = project.estimated_hours;
     console.log(`\n=== Processing project: ${project.name} (${remainingHours}h needed) ===`);
     
-    // Get current date in user's timezone
-    let currentDate = new Date();
-    // Convert to user timezone for date calculations
-    const userDate = new Date(currentDate.toLocaleString("en-US", {timeZone: userTimezone}));
-    userDate.setHours(0, 0, 0, 0); // Start from today in user timezone
+    // Get current date in Paris timezone
+    let currentDate = new Date(new Date().toLocaleString("en-US", {timeZone: parisTimezone}));
+    currentDate.setHours(0, 0, 0, 0); // Start from today in Paris timezone
     
     // While loop to find slots until all hours are scheduled
     while (remainingHours > 0) {
-      const dayOfWeek = userDate.getDay();
+      const dayOfWeek = currentDate.getDay();
       
       // Check if current day matches any availability rule
       const applicableRule = availabilityRules.find(rule => 
@@ -241,40 +238,36 @@ function generateScheduleWithWhileLoop(
       );
       
       if (applicableRule) {
-        console.log(`Checking ${userDate.toDateString()} (day ${dayOfWeek}) in ${userTimezone}`);
+        console.log(`Checking ${currentDate.toDateString()} (day ${dayOfWeek}) in Paris time`);
         
-        // Create potential session for this day in user timezone
+        // Create potential session for this day in Paris timezone
         const startTime = parseTime(applicableRule.start_time);
         const endTime = parseTime(applicableRule.end_time);
         
-        // Create session start/end times in user timezone
-        const sessionStart = new Date(userDate);
+        // Create session start/end times in Paris timezone
+        const sessionStart = new Date(currentDate);
         sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
         
-        const sessionEnd = new Date(userDate);
+        const sessionEnd = new Date(currentDate);
         sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
         
-        // Convert to UTC for storage and comparison
-        const sessionStartUTC = new Date(sessionStart.toLocaleString("en-US", {timeZone: "UTC"}));
-        const sessionEndUTC = new Date(sessionEnd.toLocaleString("en-US", {timeZone: "UTC"}));
-        
-        // Skip if slot is in the past (compare in user timezone)
-        const nowInUserTz = new Date(new Date().toLocaleString("en-US", {timeZone: userTimezone}));
-        if (sessionEnd <= nowInUserTz) {
-          console.log(`Skipping past slot: ${sessionStart.toLocaleString()} ${userTimezone}`);
-          userDate.setDate(userDate.getDate() + 1);
+        // Skip if slot is in the past (compare in Paris timezone)
+        const nowInParis = new Date(new Date().toLocaleString("en-US", {timeZone: parisTimezone}));
+        if (sessionEnd <= nowInParis) {
+          console.log(`Skipping past slot: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
+          currentDate.setDate(currentDate.getDate() + 1);
           continue;
         }
         
         // Adjust start time if it's in the past
-        if (sessionStart < nowInUserTz) {
-          const adjustedStart = new Date(nowInUserTz);
+        if (sessionStart < nowInParis) {
+          const adjustedStart = new Date(nowInParis);
           // Round up to next 15-minute interval
           const minutes = adjustedStart.getMinutes();
           const roundedMinutes = Math.ceil(minutes / 15) * 15;
           adjustedStart.setMinutes(roundedMinutes, 0, 0);
           sessionStart.setTime(adjustedStart.getTime());
-          console.log(`Adjusted past start time to: ${sessionStart.toLocaleString()} ${userTimezone}`);
+          console.log(`Adjusted past start time to: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
         }
         
         // Calculate session duration
@@ -284,12 +277,12 @@ function generateScheduleWithWhileLoop(
         if (sessionDuration > 0) {
           const actualSessionEnd = new Date(sessionStart.getTime() + sessionDuration * 60 * 60 * 1000);
           
-          // Convert to UTC for conflict checking
-          const sessionStartUTCFinal = convertToUTC(sessionStart, userTimezone);
-          const sessionEndUTCFinal = convertToUTC(actualSessionEnd, userTimezone);
+          // Convert to UTC for conflict checking and storage
+          const sessionStartUTC = convertParisToUTC(sessionStart);
+          const sessionEndUTC = convertParisToUTC(actualSessionEnd);
           
           // Check for conflicts with external events (in UTC)
-          const hasConflict = checkConflictWithExternalEvents(sessionStartUTCFinal, sessionEndUTCFinal, externalEvents);
+          const hasConflict = checkConflictWithExternalEvents(sessionStartUTC, sessionEndUTC, externalEvents);
           
           if (!hasConflict) {
             // No conflict - create the session (store in UTC)
@@ -297,8 +290,8 @@ function generateScheduleWithWhileLoop(
               id: `${project.id}-${sessions.length}`,
               projectId: project.id,
               projectName: project.name,
-              startTime: sessionStartUTCFinal,
-              endTime: sessionEndUTCFinal,
+              startTime: sessionStartUTC,
+              endTime: sessionEndUTC,
               duration: sessionDuration,
               status: "scheduled",
               priority: project.priority,
@@ -308,21 +301,22 @@ function generateScheduleWithWhileLoop(
             sessions.push(session);
             remainingHours -= sessionDuration;
             
-            console.log(`✅ Scheduled: ${sessionStart.toLocaleString()} - ${actualSessionEnd.toLocaleString()} ${userTimezone} (${sessionDuration}h)`);
+            console.log(`✅ Scheduled: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} - ${actualSessionEnd.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time (${sessionDuration}h)`);
+            console.log(`   UTC storage: ${sessionStartUTC.toISOString()} - ${sessionEndUTC.toISOString()}`);
             console.log(`Remaining hours: ${remainingHours}h`);
           } else {
-            console.log(`❌ Conflict detected for: ${sessionStart.toLocaleString()} - ${actualSessionEnd.toLocaleString()} ${userTimezone}`);
+            console.log(`❌ Conflict detected for: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} - ${actualSessionEnd.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
           }
         }
       }
       
       // Move to next day
-      userDate.setDate(userDate.getDate() + 1);
+      currentDate.setDate(currentDate.getDate() + 1);
       
       // Safety check to prevent infinite loops (max 365 days ahead)
       const maxDate = new Date();
       maxDate.setDate(maxDate.getDate() + 365);
-      if (userDate > maxDate) {
+      if (currentDate > maxDate) {
         console.log(`⚠️ Reached maximum scheduling horizon. ${remainingHours}h remaining for ${project.name}`);
         break;
       }
@@ -340,18 +334,17 @@ function generateScheduleWithWhileLoop(
   return sessions;
 }
 
-// Helper function to convert local time to UTC
-function convertToUTC(localDate: Date, timezone: string): Date {
-  // Create a date string in the target timezone and parse it as UTC
-  const utcString = localDate.toLocaleString("sv-SE", {timeZone: "UTC"});
-  const localString = localDate.toLocaleString("sv-SE", {timeZone: timezone});
+// Helper function to convert Paris time to UTC
+function convertParisToUTC(parisDate: Date): Date {
+  // Create a date string in Paris timezone and convert to UTC
+  const parisString = parisDate.toLocaleString("sv-SE", {timeZone: "Europe/Paris"});
+  const utcString = parisDate.toLocaleString("sv-SE", {timeZone: "UTC"});
   
-  // Calculate the offset and apply it
+  const parisTime = new Date(parisString).getTime();
   const utcTime = new Date(utcString).getTime();
-  const localTime = new Date(localString).getTime();
-  const offset = utcTime - localTime;
+  const offset = parisTime - utcTime;
   
-  return new Date(localDate.getTime() + offset);
+  return new Date(parisDate.getTime() - offset);
 }
 
 function checkConflictWithExternalEvents(sessionStart: Date, sessionEnd: Date, externalEvents: any[]): boolean {

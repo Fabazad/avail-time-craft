@@ -27,16 +27,16 @@ export const useScheduleRecalculation = () => {
         throw new Error('No active session found');
       }
 
-      // Get user's timezone
-      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      console.log('User timezone:', userTimezone);
+      // Use Paris timezone for all scheduling
+      const parisTimezone = 'Europe/Paris';
+      console.log('Using Paris timezone:', parisTimezone);
 
       const { data, error } = await supabase.functions.invoke('recalculate-schedule', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: {
-          timezone: userTimezone
+          timezone: parisTimezone
         }
       });
 
