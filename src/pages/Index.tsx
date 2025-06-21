@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Dashboard } from '@/components/Dashboard';
 import { ProjectForm } from '@/components/ProjectForm';
@@ -10,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Calendar, Clock, Settings } from 'lucide-react';
 import { Project, AvailabilityRule, ScheduledSession } from '@/types';
 import { SchedulingEngine } from '@/utils/schedulingEngine';
+import { updateProjectWithDates } from '@/utils/projectUtils';
+import { format } from 'date-fns';
 
 const Index = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -138,34 +139,51 @@ const Index = () => {
             <Card className="p-6 bg-white/70 backdrop-blur-sm border-blue-200/50">
               <h2 className="text-2xl font-semibold mb-4 text-gray-800">All Projects</h2>
               <div className="grid gap-4">
-                {projects.map(project => (
-                  <Card key={project.id} className="p-4 bg-white/50 border-blue-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-gray-800">{project.name}</h3>
-                        <p className="text-sm text-gray-600">
-                          {project.estimatedHours}h • Priority {project.priority} • {project.status}
-                        </p>
+                {projects.map(project => {
+                  const projectWithDates = updateProjectWithDates(project, scheduledSessions);
+                  
+                  return (
+                    <Card key={project.id} className="p-4 bg-white/50 border-blue-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800">{project.name}</h3>
+                          <p className="text-sm text-gray-600">
+                            {project.estimatedHours}h • Priority {project.priority} • {project.status}
+                          </p>
+                          {/* Project Dates */}
+                          {projectWithDates.startDate && projectWithDates.endDate && (
+                            <div className="mt-2 text-xs text-gray-500">
+                              <div className="flex items-center gap-4">
+                                <span>
+                                  <strong>Start:</strong> {format(projectWithDates.startDate, 'MMM dd, yyyy HH:mm')}
+                                </span>
+                                <span>
+                                  <strong>End:</strong> {format(projectWithDates.endDate, 'MMM dd, yyyy HH:mm')}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleUpdateProject({...project, status: project.status === 'completed' ? 'pending' : 'completed'})}
+                          >
+                            {project.status === 'completed' ? 'Reopen' : 'Complete'}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => handleDeleteProject(project.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleUpdateProject({...project, status: project.status === 'completed' ? 'pending' : 'completed'})}
-                        >
-                          {project.status === 'completed' ? 'Reopen' : 'Complete'}
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => handleDeleteProject(project.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </Card>
           </TabsContent>

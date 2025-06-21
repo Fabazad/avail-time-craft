@@ -1,4 +1,3 @@
-
 export interface Project {
   id: string;
   name: string;
@@ -9,6 +8,8 @@ export interface Project {
   description?: string;
   createdAt?: Date;
   dueDate?: Date;
+  startDate?: Date; // Calculated from first scheduled session
+  endDate?: Date; // Calculated from last scheduled session
 }
 
 export interface AvailabilityRule {

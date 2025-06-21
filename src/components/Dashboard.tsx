@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -6,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Project, ScheduledSession } from '@/types';
 import { Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays } from 'date-fns';
+import { format } from 'date-fns';
+import { updateProjectWithDates } from '@/utils/projectUtils';
 
 interface DashboardProps {
   projects: Project[];
@@ -122,6 +123,8 @@ export const Dashboard = ({
           <div className="space-y-4">
             {activeProjects.map((project) => {
               const progress = getProjectProgress(project);
+              const projectWithDates = updateProjectWithDates(project, scheduledSessions);
+              
               return (
                 <div key={project.id} className="p-4 bg-white/50 rounded-lg border border-blue-100">
                   <div className="flex items-start justify-between mb-2">
@@ -137,6 +140,19 @@ export const Dashboard = ({
                           {project.estimatedHours}h estimated
                         </span>
                       </div>
+                      {/* Project Dates */}
+                      {projectWithDates.startDate && projectWithDates.endDate && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-4">
+                            <span>
+                              <strong>Start:</strong> {format(projectWithDates.startDate, 'MMM dd, HH:mm')}
+                            </span>
+                            <span>
+                              <strong>End:</strong> {format(projectWithDates.endDate, 'MMM dd, HH:mm')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button 
