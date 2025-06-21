@@ -25,9 +25,13 @@ export class SchedulingEngine {
     
     const availableSlots = this.generateAvailableSlots(availabilityRules, weeksNeeded * 7);
     
-    // Block time slots that conflict with external events (Google Calendar) - improved logic
-    console.log(`Blocking ${externalEvents.length} external calendar events from scheduling`);
-    this.blockExternalEventsImproved(availableSlots, externalEvents);
+    // Only block time slots if there are actual external events
+    if (externalEvents && externalEvents.length > 0) {
+      console.log(`Blocking ${externalEvents.length} external calendar events from scheduling`);
+      this.blockExternalEventsImproved(availableSlots, externalEvents);
+    } else {
+      console.log('No external calendar events to avoid - scheduling optimally');
+    }
     
     const sessions: ScheduledSession[] = [];
     const remainingHours = new Map(sortedProjects.map(p => [p.id, p.estimatedHours]));
@@ -55,12 +59,14 @@ export class SchedulingEngine {
         const sessionStart = slot.start;
         const sessionEnd = addHours(slot.start, sessionDuration);
         
-        // Double-check for conflicts with external events before creating session
-        const hasConflict = this.hasConflictWithExternalEvents(sessionStart, sessionEnd, externalEvents);
-        if (hasConflict) {
-          console.log(`Skipping slot due to conflict: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
-          slot.isAvailable = false;
-          continue;
+        // Only check for conflicts if there are external events
+        if (externalEvents && externalEvents.length > 0) {
+          const hasConflict = this.hasConflictWithExternalEvents(sessionStart, sessionEnd, externalEvents);
+          if (hasConflict) {
+            console.log(`Skipping slot due to conflict: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
+            slot.isAvailable = false;
+            continue;
+          }
         }
         
         // Create session
@@ -98,6 +104,11 @@ export class SchedulingEngine {
     sessionEnd: Date, 
     externalEvents: { start: Date; end: Date }[]
   ): boolean {
+    // If no external events, there's no conflict
+    if (!externalEvents || externalEvents.length === 0) {
+      return false;
+    }
+    
     return externalEvents.some(event => {
       // Check if the session overlaps with any external event
       // Two time ranges overlap if: start1 < end2 AND start2 < end1
@@ -300,8 +311,15 @@ export class SchedulingEngine {
   
   /**
    * Improved method to block time slots that conflict with external events
+   * Only blocks slots when there are actual external events
    */
   private blockExternalEventsImproved(slots: TimeSlot[], externalEvents: { start: Date; end: Date }[]): void {
+    // Early return if no external events
+    if (!externalEvents || externalEvents.length === 0) {
+      console.log('No external events to block');
+      return;
+    }
+    
     for (const event of externalEvents) {
       console.log(`Blocking external event: ${event.start.toISOString()} - ${event.end.toISOString()}`);
       
