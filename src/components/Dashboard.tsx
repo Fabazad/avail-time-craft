@@ -3,9 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Project, ScheduledSession, AvailabilityRule } from '@/types';
-import { Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays } from 'date-fns';
 import { updateProjectWithDates } from '@/utils/projectUtils';
+import { useScheduleRecalculation } from '@/hooks/useScheduleRecalculation';
 
 interface DashboardProps {
   projects: Project[];
@@ -14,6 +15,7 @@ interface DashboardProps {
   onCompleteSession?: (sessionId: string) => void;
   onUpdateProject?: (project: Project) => void;
   onDeleteProject?: (projectId: string) => void;
+  onScheduleRecalculated?: () => void;
 }
 
 export const Dashboard = ({ 
@@ -22,8 +24,11 @@ export const Dashboard = ({
   availabilityRules,
   onCompleteSession,
   onUpdateProject,
-  onDeleteProject 
+  onDeleteProject,
+  onScheduleRecalculated 
 }: DashboardProps) => {
+  const { recalculateSchedule, isRecalculating } = useScheduleRecalculation();
+
   const activeProjects = projects.filter(p => p.status !== 'completed');
   const completedProjects = projects.filter(p => p.status === 'completed');
   
@@ -34,6 +39,17 @@ export const Dashboard = ({
   const upcomingSessions = scheduledSessions.filter(session => 
     session.startTime > new Date() && session.status === 'scheduled'
   ).slice(0, 5);
+
+  const handleRecalculateSchedule = async () => {
+    try {
+      await recalculateSchedule();
+      if (onScheduleRecalculated) {
+        onScheduleRecalculated();
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
 
   const getProjectProgress = (project: Project) => {
     const projectSessions = scheduledSessions.filter(s => s.projectId === project.id);
@@ -113,6 +129,18 @@ export const Dashboard = ({
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Recalculate Schedule Button */}
+      <div className="lg:col-span-3 mb-4">
+        <Button 
+          onClick={handleRecalculateSchedule}
+          disabled={isRecalculating}
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} />
+          {isRecalculating ? 'Recalculating Schedule...' : 'Recalculate Schedule'}
+        </Button>
       </div>
 
       {/* Active Projects */}

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -110,6 +109,10 @@ const IndexContent = () => {
     await updateAvailabilityRules(rules);
   };
 
+  const handleScheduleRecalculated = async () => {
+    await refetchScheduledSessions();
+  };
+
   if (projectsLoading || sessionsLoading || availabilityLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
@@ -180,6 +183,7 @@ const IndexContent = () => {
                 onCompleteSession={completeSession}
                 onUpdateProject={handleUpdateProject}
                 onDeleteProject={handleDeleteProject}
+                onScheduleRecalculated={handleScheduleRecalculated}
               />
               <div className="mt-6">
                 <GoogleCalendarIntegration />
