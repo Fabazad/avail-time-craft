@@ -47,21 +47,19 @@ export const GoogleCalendarIntegration = () => {
   const connectGoogleCalendar = async () => {
     setConnecting(true);
     try {
-      // Use a hardcoded client ID for now - this should be configured via environment variables
-      // For production, you'll need to set up proper environment variables
-      const googleClientId =
-        "876859983904-k6g72a171qlif48gjgoalo3fd94cbnrk.apps.googleusercontent.com";
-
-      if (!googleClientId || googleClientId === "YOUR_GOOGLE_CLIENT_ID_HERE") {
-        toast.error(
-          "Google Client ID not configured. Please check your environment variables."
-        );
+      // Get Google Client ID from Supabase secrets via edge function
+      const { data: configData, error: configError } = await supabase.functions.invoke('get-google-config');
+      
+      if (configError || !configData.clientId) {
+        toast.error("Google OAuth configuration not found. Please check your Supabase secrets.");
         setConnecting(false);
         return;
       }
 
-      // Generate OAuth URL
-      const redirectUri = `${window.location.origin}`;
+      const googleClientId = configData.clientId;
+
+      // Generate OAuth URL with correct redirect URI
+      const redirectUri = window.location.origin;
       const scope = "https://www.googleapis.com/auth/calendar.readonly";
       const state = crypto.randomUUID();
 
@@ -79,47 +77,10 @@ export const GoogleCalendarIntegration = () => {
         `state=${encodeURIComponent(state)}`;
 
       console.log("Opening OAuth URL:", authUrl);
+      console.log("Redirect URI:", redirectUri);
 
-      // Open OAuth popup
-      const popup = window.open(
-        authUrl,
-        "google-oauth",
-        "width=500,height=600,scrollbars=yes,resizable=yes"
-      );
-
-      // Listen for the popup to close or receive a message
-      const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          setConnecting(false);
-          // Check if connection was successful by refetching
-          setTimeout(() => {
-            fetchConnection();
-          }, 1000);
-        }
-      }, 1000);
-
-      // Listen for messages from the popup
-      const messageListener = (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-
-        if (event.data.type === "GOOGLE_OAUTH_SUCCESS") {
-          clearInterval(checkClosed);
-          popup?.close();
-          window.removeEventListener("message", messageListener);
-          setConnecting(false);
-          toast.success("Google Calendar connected successfully!");
-          fetchConnection();
-        } else if (event.data.type === "GOOGLE_OAUTH_ERROR") {
-          clearInterval(checkClosed);
-          popup?.close();
-          window.removeEventListener("message", messageListener);
-          setConnecting(false);
-          toast.error(event.data.error || "Failed to connect to Google Calendar");
-        }
-      };
-
-      window.addEventListener("message", messageListener);
+      // Redirect to Google OAuth (no popup, direct redirect)
+      window.location.href = authUrl;
     } catch (error) {
       console.error("Error connecting to Google Calendar:", error);
       toast.error("Failed to connect to Google Calendar");
@@ -157,32 +118,12 @@ export const GoogleCalendarIntegration = () => {
           }
 
           console.log("Edge function response:", data);
-
-          if (window.opener) {
-            // We're in a popup, send success message to parent
-            window.opener.postMessage(
-              { type: "GOOGLE_OAUTH_SUCCESS" },
-              window.location.origin
-            );
-            window.close();
-          } else {
-            // We're in the main window
-            toast.success("Google Calendar connected successfully!");
-            fetchConnection();
-          }
+          toast.success("Google Calendar connected successfully!");
+          fetchConnection();
         } catch (error) {
           console.error("OAuth callback error:", error);
           const errorMessage = error.message || "Failed to connect to Google Calendar";
-
-          if (window.opener) {
-            window.opener.postMessage(
-              { type: "GOOGLE_OAUTH_ERROR", error: errorMessage },
-              window.location.origin
-            );
-            window.close();
-          } else {
-            toast.error(errorMessage);
-          }
+          toast.error(errorMessage);
         }
       }
     };

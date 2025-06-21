@@ -33,6 +33,11 @@ serve(async (req) => {
 
     console.log('Exchanging authorization code for tokens...')
 
+    // Get the origin from the request headers or use SUPABASE_URL as fallback
+    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || Deno.env.get('SUPABASE_URL')?.replace('/supabase', '') || '';
+    
+    console.log('Using redirect URI:', origin);
+
     // Exchange authorization code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -44,7 +49,7 @@ serve(async (req) => {
         client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
         code,
         grant_type: 'authorization_code',
-        redirect_uri: Deno.env.get('SUPABASE_URL')?.replace('/supabase', '') ?? '',
+        redirect_uri: origin,
       }),
     })
 
