@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -5,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Project, ScheduledSession } from '@/types';
 import { Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays } from 'date-fns';
-import { format } from 'date-fns';
 import { updateProjectWithDates } from '@/utils/projectUtils';
 
 interface DashboardProps {
