@@ -236,6 +236,7 @@ serve(async (req) => {
       .from("scheduled_sessions")
       .select("google_event_id, project_name")
       .eq("status", "scheduled")
+      .eq("user_id", user.id)
       .not("google_event_id", "is", null);
 
     // STEP 2: Delete existing calendar events
@@ -266,11 +267,12 @@ serve(async (req) => {
     const { error: clearError } = await supabaseClient
       .from("scheduled_sessions")
       .delete()
-      .eq("status", "scheduled");
+      .eq("status", "scheduled")
+      .eq("user_id", user.id);
 
     if (clearError) throw clearError;
 
-    // STEP 4: Fetch projects and availability rules
+    // STEP 4: Fetch projects and availability rules - FIXED: Add user_id filter
     const { data: projects, error: projectsError } = await supabaseClient
       .from('projects')
       .select('*')
@@ -282,9 +284,12 @@ serve(async (req) => {
     const { data: availabilityRules, error: rulesError } = await supabaseClient
       .from('availability_rules')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('is_active', true);
 
     if (rulesError) throw rulesError;
+
+    console.log(`Found ${projects?.length || 0} projects and ${availabilityRules?.length || 0} availability rules for user ${user.id}`);
 
     // STEP 5: Fetch Google Calendar events
     let googleCalendarEvents: { start: Date; end: Date }[] = [];
