@@ -18,11 +18,13 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         
         if (!session && event !== 'INITIAL_SESSION') {
+          console.log('No session, redirecting to auth');
           navigate('/auth');
         }
       }
@@ -30,11 +32,13 @@ export const AuthGuard = ({ children }: AuthGuardProps) => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
       
       if (!session) {
+        console.log('No initial session, redirecting to auth');
         navigate('/auth');
       }
     });
