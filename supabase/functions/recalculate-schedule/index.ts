@@ -230,6 +230,7 @@ serve(async (req) => {
     }
 
     console.log("=== STARTING SCHEDULE RECALCULATION ===");
+    console.log("User ID:", user.id);
 
     // STEP 1: Get existing scheduled sessions with Google Calendar events
     const { data: existingSessions } = await supabaseClient
@@ -272,24 +273,54 @@ serve(async (req) => {
 
     if (clearError) throw clearError;
 
-    // STEP 4: Fetch projects and availability rules - FIXED: Add user_id filter
+    // STEP 4: Fetch projects and availability rules - ENHANCED DEBUGGING
+    console.log("=== FETCHING PROJECTS ===");
     const { data: projects, error: projectsError } = await supabaseClient
       .from('projects')
       .select('*')
       .eq('user_id', user.id)
       .order('priority', { ascending: true });
 
-    if (projectsError) throw projectsError;
+    console.log("Projects query result:");
+    console.log("- Error:", projectsError);
+    console.log("- Data:", projects);
+    console.log("- Projects count:", projects?.length || 0);
 
+    if (projectsError) {
+      console.error("Projects fetch error:", projectsError);
+      throw projectsError;
+    }
+
+    console.log("=== FETCHING AVAILABILITY RULES ===");
     const { data: availabilityRules, error: rulesError } = await supabaseClient
       .from('availability_rules')
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true);
 
-    if (rulesError) throw rulesError;
+    console.log("Availability rules query result:");
+    console.log("- Error:", rulesError);
+    console.log("- Data:", availabilityRules);
+    console.log("- Rules count:", availabilityRules?.length || 0);
 
-    console.log(`Found ${projects?.length || 0} projects and ${availabilityRules?.length || 0} availability rules for user ${user.id}`);
+    if (rulesError) {
+      console.error("Availability rules fetch error:", rulesError);
+      throw rulesError;
+    }
+
+    // Additional debugging: Let's also try without the is_active filter
+    console.log("=== FETCHING ALL AVAILABILITY RULES (without is_active filter) ===");
+    const { data: allRules, error: allRulesError } = await supabaseClient
+      .from('availability_rules')
+      .select('*')
+      .eq('user_id', user.id);
+
+    console.log("All availability rules query result:");
+    console.log("- Error:", allRulesError);
+    console.log("- Data:", allRules);
+    console.log("- All rules count:", allRules?.length || 0);
+
+    console.log(`Found ${projects?.length || 0} projects and ${availabilityRules?.length || 0} active availability rules for user ${user.id}`);
 
     // STEP 5: Fetch Google Calendar events
     let googleCalendarEvents: { start: Date; end: Date }[] = [];
