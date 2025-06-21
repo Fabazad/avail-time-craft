@@ -47,8 +47,13 @@ serve(async (req) => {
       throw new Error('User not authenticated')
     }
 
+    // Get request body to extract timezone
+    const body = await req.json().catch(() => ({}));
+    const userTimezone = body.timezone || 'UTC';
+    
     console.log("=== STARTING SCHEDULE RECALCULATION ===");
     console.log("User ID:", user.id);
+    console.log("User timezone:", userTimezone);
 
     // STEP 1: Clean up existing sessions and calendar events
     await cleanupExistingSessions(supabaseClient, user.id);
@@ -59,8 +64,8 @@ serve(async (req) => {
     // STEP 3: Fetch external calendar events
     const googleCalendarEvents = await fetchGoogleCalendarEvents(supabaseClient);
 
-    // STEP 4: Generate new schedule using while loop approach
-    const newSessions = generateScheduleWithWhileLoop(projects, availabilityRules, googleCalendarEvents);
+    // STEP 4: Generate new schedule using while loop approach with timezone
+    const newSessions = generateScheduleWithWhileLoop(projects, availabilityRules, googleCalendarEvents, userTimezone);
 
     // STEP 5: Save and create calendar events
     const { successCount, errorCount } = await saveAndCreateCalendarEvents(
@@ -192,16 +197,18 @@ async function fetchGoogleCalendarEvents(supabaseClient: any) {
   return [];
 }
 
-// NEW: While loop approach for scheduling
+// Updated: While loop approach for scheduling with timezone support
 function generateScheduleWithWhileLoop(
   projects: any[],
   availabilityRules: any[],
-  externalEvents: any[]
+  externalEvents: any[],
+  userTimezone: string = 'UTC'
 ): ScheduledSession[] {
   console.log("=== WHILE LOOP SCHEDULING ENGINE ===");
   console.log("Projects:", projects.length);
   console.log("Availability rules:", availabilityRules.length);
   console.log("External events:", externalEvents.length);
+  console.log("User timezone:", userTimezone);
 
   const activeProjects = projects.filter((p) => p.status !== "completed");
   const sortedProjects = sortProjectsByPriority(activeProjects);
@@ -218,12 +225,15 @@ function generateScheduleWithWhileLoop(
     let remainingHours = project.estimated_hours;
     console.log(`\n=== Processing project: ${project.name} (${remainingHours}h needed) ===`);
     
+    // Get current date in user's timezone
     let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Start from today
+    // Convert to user timezone for date calculations
+    const userDate = new Date(currentDate.toLocaleString("en-US", {timeZone: userTimezone}));
+    userDate.setHours(0, 0, 0, 0); // Start from today in user timezone
     
     // While loop to find slots until all hours are scheduled
     while (remainingHours > 0) {
-      const dayOfWeek = currentDate.getDay();
+      const dayOfWeek = userDate.getDay();
       
       // Check if current day matches any availability rule
       const applicableRule = availabilityRules.find(rule => 
@@ -231,33 +241,40 @@ function generateScheduleWithWhileLoop(
       );
       
       if (applicableRule) {
-        console.log(`Checking ${currentDate.toDateString()} (day ${dayOfWeek})`);
+        console.log(`Checking ${userDate.toDateString()} (day ${dayOfWeek}) in ${userTimezone}`);
         
-        // Create potential session for this day
+        // Create potential session for this day in user timezone
         const startTime = parseTime(applicableRule.start_time);
         const endTime = parseTime(applicableRule.end_time);
         
-        const sessionStart = new Date(currentDate);
+        // Create session start/end times in user timezone
+        const sessionStart = new Date(userDate);
         sessionStart.setHours(startTime.hours, startTime.minutes, 0, 0);
         
-        const sessionEnd = new Date(currentDate);
+        const sessionEnd = new Date(userDate);
         sessionEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
         
-        // Skip if slot is in the past
-        if (sessionEnd <= new Date()) {
-          console.log(`Skipping past slot: ${sessionStart.toISOString()}`);
-          currentDate.setDate(currentDate.getDate() + 1);
+        // Convert to UTC for storage and comparison
+        const sessionStartUTC = new Date(sessionStart.toLocaleString("en-US", {timeZone: "UTC"}));
+        const sessionEndUTC = new Date(sessionEnd.toLocaleString("en-US", {timeZone: "UTC"}));
+        
+        // Skip if slot is in the past (compare in user timezone)
+        const nowInUserTz = new Date(new Date().toLocaleString("en-US", {timeZone: userTimezone}));
+        if (sessionEnd <= nowInUserTz) {
+          console.log(`Skipping past slot: ${sessionStart.toLocaleString()} ${userTimezone}`);
+          userDate.setDate(userDate.getDate() + 1);
           continue;
         }
         
         // Adjust start time if it's in the past
-        if (sessionStart < new Date()) {
-          const now = new Date();
-          sessionStart.setTime(now.getTime());
+        if (sessionStart < nowInUserTz) {
+          const adjustedStart = new Date(nowInUserTz);
           // Round up to next 15-minute interval
-          const minutes = sessionStart.getMinutes();
+          const minutes = adjustedStart.getMinutes();
           const roundedMinutes = Math.ceil(minutes / 15) * 15;
-          sessionStart.setMinutes(roundedMinutes, 0, 0);
+          adjustedStart.setMinutes(roundedMinutes, 0, 0);
+          sessionStart.setTime(adjustedStart.getTime());
+          console.log(`Adjusted past start time to: ${sessionStart.toLocaleString()} ${userTimezone}`);
         }
         
         // Calculate session duration
@@ -267,17 +284,21 @@ function generateScheduleWithWhileLoop(
         if (sessionDuration > 0) {
           const actualSessionEnd = new Date(sessionStart.getTime() + sessionDuration * 60 * 60 * 1000);
           
-          // Check for conflicts with external events
-          const hasConflict = checkConflictWithExternalEvents(sessionStart, actualSessionEnd, externalEvents);
+          // Convert to UTC for conflict checking
+          const sessionStartUTCFinal = convertToUTC(sessionStart, userTimezone);
+          const sessionEndUTCFinal = convertToUTC(actualSessionEnd, userTimezone);
+          
+          // Check for conflicts with external events (in UTC)
+          const hasConflict = checkConflictWithExternalEvents(sessionStartUTCFinal, sessionEndUTCFinal, externalEvents);
           
           if (!hasConflict) {
-            // No conflict - create the session
+            // No conflict - create the session (store in UTC)
             const session: ScheduledSession = {
               id: `${project.id}-${sessions.length}`,
               projectId: project.id,
               projectName: project.name,
-              startTime: sessionStart,
-              endTime: actualSessionEnd,
+              startTime: sessionStartUTCFinal,
+              endTime: sessionEndUTCFinal,
               duration: sessionDuration,
               status: "scheduled",
               priority: project.priority,
@@ -287,21 +308,21 @@ function generateScheduleWithWhileLoop(
             sessions.push(session);
             remainingHours -= sessionDuration;
             
-            console.log(`✅ Scheduled: ${sessionStart.toISOString()} - ${actualSessionEnd.toISOString()} (${sessionDuration}h)`);
+            console.log(`✅ Scheduled: ${sessionStart.toLocaleString()} - ${actualSessionEnd.toLocaleString()} ${userTimezone} (${sessionDuration}h)`);
             console.log(`Remaining hours: ${remainingHours}h`);
           } else {
-            console.log(`❌ Conflict detected for: ${sessionStart.toISOString()} - ${actualSessionEnd.toISOString()}`);
+            console.log(`❌ Conflict detected for: ${sessionStart.toLocaleString()} - ${actualSessionEnd.toLocaleString()} ${userTimezone}`);
           }
         }
       }
       
       // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
+      userDate.setDate(userDate.getDate() + 1);
       
       // Safety check to prevent infinite loops (max 365 days ahead)
       const maxDate = new Date();
       maxDate.setDate(maxDate.getDate() + 365);
-      if (currentDate > maxDate) {
+      if (userDate > maxDate) {
         console.log(`⚠️ Reached maximum scheduling horizon. ${remainingHours}h remaining for ${project.name}`);
         break;
       }
@@ -317,6 +338,20 @@ function generateScheduleWithWhileLoop(
   console.log(`\n=== SCHEDULING COMPLETE ===`);
   console.log(`Total sessions created: ${sessions.length}`);
   return sessions;
+}
+
+// Helper function to convert local time to UTC
+function convertToUTC(localDate: Date, timezone: string): Date {
+  // Create a date string in the target timezone and parse it as UTC
+  const utcString = localDate.toLocaleString("sv-SE", {timeZone: "UTC"});
+  const localString = localDate.toLocaleString("sv-SE", {timeZone: timezone});
+  
+  // Calculate the offset and apply it
+  const utcTime = new Date(utcString).getTime();
+  const localTime = new Date(localString).getTime();
+  const offset = utcTime - localTime;
+  
+  return new Date(localDate.getTime() + offset);
 }
 
 function checkConflictWithExternalEvents(sessionStart: Date, sessionEnd: Date, externalEvents: any[]): boolean {

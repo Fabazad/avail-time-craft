@@ -27,10 +27,17 @@ export const useScheduleRecalculation = () => {
         throw new Error('No active session found');
       }
 
+      // Get user's timezone
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log('User timezone:', userTimezone);
+
       const { data, error } = await supabase.functions.invoke('recalculate-schedule', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: {
+          timezone: userTimezone
+        }
       });
 
       if (error) throw error;
