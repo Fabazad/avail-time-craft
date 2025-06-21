@@ -13,6 +13,15 @@ interface AvailabilityManagerProps {
   onUpdateRules: (rules: AvailabilityRule[]) => void;
 }
 
+// Helper function to generate UUID v4
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export const AvailabilityManager = ({ availabilityRules, onUpdateRules }: AvailabilityManagerProps) => {
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<AvailabilityRule | null>(null);
@@ -54,7 +63,7 @@ export const AvailabilityManager = ({ availabilityRules, onUpdateRules }: Availa
     }
 
     const newRule: AvailabilityRule = {
-      id: editingRule ? editingRule.id : Date.now().toString(),
+      id: editingRule ? editingRule.id : generateUUID(), // Use proper UUID generation
       name: formData.name.trim(),
       dayOfWeek: formData.dayOfWeek,
       startTime: formData.startTime,
