@@ -9,7 +9,167 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      availability_rules: {
+        Row: {
+          created_at: string
+          day_of_week: number[]
+          duration: number | null
+          end_time: string
+          id: string
+          is_active: boolean
+          name: string
+          start_time: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number[]
+          duration?: number | null
+          end_time: string
+          id?: string
+          is_active?: boolean
+          name: string
+          start_time: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number[]
+          duration?: number | null
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          start_time?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      calendar_connections: {
+        Row: {
+          access_token: string | null
+          calendar_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          provider: string
+          refresh_token: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          provider: string
+          refresh_token?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          provider?: string
+          refresh_token?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          estimated_hours: number
+          id: string
+          name: string
+          priority: number
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          estimated_hours: number
+          id?: string
+          name: string
+          priority?: number
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          estimated_hours?: number
+          id?: string
+          name?: string
+          priority?: number
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      scheduled_sessions: {
+        Row: {
+          color: string | null
+          created_at: string
+          duration: number
+          end_time: string
+          id: string
+          priority: number
+          project_id: string | null
+          project_name: string
+          start_time: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          duration: number
+          end_time: string
+          id?: string
+          priority: number
+          project_id?: string | null
+          project_name: string
+          start_time: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          duration?: number
+          end_time?: string
+          id?: string
+          priority?: number
+          project_id?: string | null
+          project_name?: string
+          start_time?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

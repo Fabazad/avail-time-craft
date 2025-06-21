@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { X } from 'lucide-react';
 
@@ -12,7 +11,6 @@ interface ProjectFormProps {
   onSubmit: (project: {
     name: string;
     estimatedHours: number;
-    priority: number;
     description?: string;
   }) => void;
   onCancel: () => void;
@@ -22,7 +20,6 @@ export const ProjectForm = ({ onSubmit, onCancel }: ProjectFormProps) => {
   const [formData, setFormData] = useState({
     name: '',
     estimatedHours: '',
-    priority: '3',
     description: ''
   });
 
@@ -36,7 +33,6 @@ export const ProjectForm = ({ onSubmit, onCancel }: ProjectFormProps) => {
     onSubmit({
       name: formData.name.trim(),
       estimatedHours: parseFloat(formData.estimatedHours),
-      priority: parseInt(formData.priority),
       description: formData.description.trim() || undefined
     });
   };
@@ -74,37 +70,19 @@ export const ProjectForm = ({ onSubmit, onCancel }: ProjectFormProps) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="hours">Estimated Hours</Label>
-              <Input
-                id="hours"
-                type="number"
-                min="0.5"
-                step="0.5"
-                value={formData.estimatedHours}
-                onChange={(e) => handleChange('estimatedHours', e.target.value)}
-                placeholder="0"
-                className="border-blue-200 focus:border-blue-400"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Select value={formData.priority} onValueChange={(value) => handleChange('priority', value)}>
-                <SelectTrigger className="border-blue-200 focus:border-blue-400">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 - Highest</SelectItem>
-                  <SelectItem value="2">2 - High</SelectItem>
-                  <SelectItem value="3">3 - Medium</SelectItem>
-                  <SelectItem value="4">4 - Low</SelectItem>
-                  <SelectItem value="5">5 - Lowest</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="hours">Estimated Hours</Label>
+            <Input
+              id="hours"
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={formData.estimatedHours}
+              onChange={(e) => handleChange('estimatedHours', e.target.value)}
+              placeholder="0"
+              className="border-blue-200 focus:border-blue-400"
+              required
+            />
           </div>
 
           <div className="space-y-2">

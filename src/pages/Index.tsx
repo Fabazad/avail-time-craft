@@ -1,206 +1,135 @@
 
-import { useState, useEffect } from 'react';
-import { Dashboard } from '@/components/Dashboard';
-import { ProjectForm } from '@/components/ProjectForm';
-import { AvailabilityManager } from '@/components/AvailabilityManager';
-import { CalendarView } from '@/components/CalendarView';
-import { SortableProjectsList } from '@/components/SortableProjectsList';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Calendar, Clock, Settings } from 'lucide-react';
-import { Project, AvailabilityRule, ScheduledSession } from '@/types';
-import { SchedulingEngine } from '@/utils/schedulingEngine';
-import { updateProjectWithDates } from '@/utils/projectUtils';
-import { format } from 'date-fns';
+import { Plus } from 'lucide-react';
+import { ProjectForm } from '@/components/ProjectForm';
+import { Dashboard } from '@/components/Dashboard';
+import { SortableProjectsList } from '@/components/SortableProjectsList';
+import { useProjects } from '@/hooks/useProjects';
+import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 
 const Index = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [availabilityRules, setAvailabilityRules] = useState<AvailabilityRule[]>([
-    {
-      id: '1',
-      name: 'Weekday Evenings',
-      dayOfWeek: [1, 2, 3, 4, 5], // Mon-Fri
-      startTime: '19:00',
-      endTime: '22:00',
-      isActive: true
+  const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'projects'>('dashboard');
+  
+  const { 
+    projects, 
+    loading: projectsLoading, 
+    createProject, 
+    updateProject, 
+    updateProjectPriorities,
+    deleteProject 
+  } = useProjects();
+  
+  const { 
+    scheduledSessions, 
+    loading: sessionsLoading, 
+    completeSession 
+  } = useScheduledSessions();
+
+  const handleCreateProject = async (projectData: {
+    name: string;
+    estimatedHours: number;
+    description?: string;
+  }) => {
+    try {
+      await createProject(projectData);
+      setShowForm(false);
+    } catch (error) {
+      // Error handling is done in the hook
     }
-  ]);
-  const [scheduledSessions, setScheduledSessions] = useState<ScheduledSession[]>([]);
-  const [showProjectForm, setShowProjectForm] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
-
-  const schedulingEngine = new SchedulingEngine();
-
-  useEffect(() => {
-    // Recalculate schedule whenever projects or availability changes
-    const newSessions = schedulingEngine.generateSchedule(projects, availabilityRules);
-    setScheduledSessions(newSessions);
-  }, [projects, availabilityRules]);
-
-  const handleAddProject = (project: Omit<Project, 'id' | 'status' | 'scheduledSessions'>) => {
-    const newProject: Project = {
-      ...project,
-      id: Date.now().toString(),
-      status: 'pending',
-      scheduledSessions: []
-    };
-    setProjects(prev => [...prev, newProject]);
-    setShowProjectForm(false);
   };
 
-  const handleUpdateProject = (updatedProject: Project) => {
-    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+  const handleReorderProjects = async (reorderedProjects: any[]) => {
+    await updateProjectPriorities(reorderedProjects);
   };
 
-  const handleDeleteProject = (projectId: string) => {
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-  };
-
-  const handleCompleteSession = (sessionId: string) => {
-    setScheduledSessions(prev => 
-      prev.map(session => 
-        session.id === sessionId 
-          ? { ...session, status: 'completed' }
-          : session
-      )
+  if (projectsLoading || sessionsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading projects...</p>
+        </div>
+      </div>
     );
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
-            Smart Project Scheduler
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Intelligently schedule your projects within your available time
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">
+              Project Scheduler
+            </h1>
+            <p className="text-gray-600">
+              Manage your projects and schedule work sessions efficiently
+            </p>
+          </div>
+          <Button 
+            onClick={() => setShowForm(true)}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            New Project
+          </Button>
         </div>
 
-        {/* Main Navigation */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
-            <TabsList className="grid w-full lg:w-auto grid-cols-4 lg:grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50">
-              <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                <span className="hidden sm:inline">Calendar</span>
-              </TabsTrigger>
-              <TabsTrigger value="availability" className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                <span className="hidden sm:inline">Availability</span>
-              </TabsTrigger>
-              <TabsTrigger value="projects" className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Projects</span>
-              </TabsTrigger>
-            </TabsList>
+        {/* Navigation Tabs */}
+        <div className="flex space-x-1 mb-6 bg-white/50 p-1 rounded-lg backdrop-blur-sm border border-blue-200/50">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
+              activeTab === 'dashboard'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
+            }`}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('projects')}
+            className={`flex-1 py-3 px-6 rounded-md font-medium transition-all duration-200 ${
+              activeTab === 'projects'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
+            }`}
+          >
+            All Projects
+          </button>
+        </div>
 
-            <Button 
-              onClick={() => setShowProjectForm(true)}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
+        {/* Content */}
+        {showForm ? (
+          <div className="max-w-2xl mx-auto">
+            <ProjectForm 
+              onSubmit={handleCreateProject}
+              onCancel={() => setShowForm(false)}
+            />
           </div>
-
-          <TabsContent value="dashboard" className="space-y-6">
-            <Dashboard 
-              projects={projects}
-              scheduledSessions={scheduledSessions}
-              onCompleteSession={handleCompleteSession}
-              onUpdateProject={handleUpdateProject}
-              onDeleteProject={handleDeleteProject}
-            />
-          </TabsContent>
-
-          <TabsContent value="calendar" className="space-y-6">
-            <CalendarView 
-              projects={projects}
-              scheduledSessions={scheduledSessions}
-              availabilityRules={availabilityRules}
-              onCompleteSession={handleCompleteSession}
-            />
-          </TabsContent>
-
-          <TabsContent value="availability" className="space-y-6">
-            <AvailabilityManager 
-              availabilityRules={availabilityRules}
-              onUpdateRules={setAvailabilityRules}
-            />
-          </TabsContent>
-
-          <TabsContent value="projects" className="space-y-6">
-            <Card className="p-6 bg-white/70 backdrop-blur-sm border-blue-200/50">
-              <h2 className="text-2xl font-semibold mb-4 text-gray-800">All Projects</h2>
-              <div className="grid gap-4">
-                {projects.map(project => {
-                  const projectWithDates = updateProjectWithDates(project, scheduledSessions);
-                  
-                  return (
-                    <Card key={project.id} className="p-4 bg-white/50 border-blue-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-800">{project.name}</h3>
-                          <p className="text-sm text-gray-600">
-                            {project.estimatedHours}h • Priority {project.priority} • {project.status}
-                          </p>
-                          {/* Project Dates */}
-                          {projectWithDates.startDate && projectWithDates.endDate && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              <div className="flex items-center gap-4">
-                                <span>
-                                  <strong>Start:</strong> {format(projectWithDates.startDate, 'MMM dd, yyyy HH:mm')}
-                                </span>
-                                <span>
-                                  <strong>End:</strong> {format(projectWithDates.endDate, 'MMM dd, yyyy HH:mm')}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleUpdateProject({...project, status: project.status === 'completed' ? 'pending' : 'completed'})}
-                          >
-                            {project.status === 'completed' ? 'Reopen' : 'Complete'}
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive"
-                            onClick={() => handleDeleteProject(project.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Project Form Modal */}
-        {showProjectForm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
-              <ProjectForm 
-                onSubmit={handleAddProject}
-                onCancel={() => setShowProjectForm(false)}
+        ) : (
+          <>
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                projects={projects}
+                scheduledSessions={scheduledSessions}
+                onCompleteSession={completeSession}
+                onUpdateProject={updateProject}
+                onDeleteProject={deleteProject}
               />
-            </div>
-          </div>
+            )}
+            
+            {activeTab === 'projects' && (
+              <SortableProjectsList
+                projects={projects}
+                scheduledSessions={scheduledSessions}
+                onUpdateProject={updateProject}
+                onReorderProjects={handleReorderProjects}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
