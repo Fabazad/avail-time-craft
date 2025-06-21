@@ -67,7 +67,7 @@ export const useProjects = () => {
         name: data.name,
         estimatedHours: data.estimated_hours,
         priority: data.priority,
-        status: data.status,
+        status: data.status as 'pending' | 'scheduled' | 'completed',
         scheduledSessions: [],
         description: data.description,
         createdAt: new Date(data.created_at)
