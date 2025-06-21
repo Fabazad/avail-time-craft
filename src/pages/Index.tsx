@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { ProjectForm } from '@/components/ProjectForm';
@@ -10,8 +10,7 @@ import { CalendarView } from '@/components/CalendarView';
 import { useProjects } from '@/hooks/useProjects';
 import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 import { useAvailability } from '@/hooks/useAvailability';
-import { scheduleProjects } from '@/utils/schedulingEngine';
-import { toast } from 'sonner';
+import { useScheduleRecalculation } from '@/hooks/useScheduleRecalculation';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -22,7 +21,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isRecalculating, setIsRecalculating] = useState(false);
   
   const { 
     projects, 
@@ -46,33 +44,29 @@ const IndexContent = () => {
     updateAvailabilityRules
   } = useAvailability();
 
+  const { recalculateSchedule, isRecalculating } = useScheduleRecalculation();
+
   // Trigger automatic scheduling when projects or availability rules change
-  const recalculateSchedule = useCallback(async () => {
+  useEffect(() => {
     if (projects.length === 0 || availabilityRules.length === 0) return;
     
-    setIsRecalculating(true);
-    try {
-      // The scheduleProjects function now fetches Google Calendar events internally
-      await scheduleProjects(projects, availabilityRules);
-      await refetchScheduledSessions();
-      toast.success('Schedule updated with calendar conflicts considered');
-    } catch (error) {
-      console.error('Error recalculating schedule:', error);
-      toast.error('Failed to update schedule');
-    } finally {
-      setIsRecalculating(false);
-    }
-  }, [projects, availabilityRules, refetchScheduledSessions]);
-
-  // Trigger recalculation when projects or availability rules change
-  useEffect(() => {
     // Debounce the recalculation to avoid multiple calls
-    const timeoutId = setTimeout(() => {
-      recalculateSchedule();
+    const timeoutId = setTimeout(async () => {
+      try {
+        await recalculateSchedule();
+        await refetchScheduledSessions();
+      } catch (error) {
+        // Error handling is done in the hook
+      }
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [projects.length, availabilityRules.length, JSON.stringify(projects.map(p => ({ id: p.id, status: p.status, priority: p.priority }))), JSON.stringify(availabilityRules.map(r => ({ id: r.id, isActive: r.isActive })))]);
+  }, [
+    projects.length, 
+    availabilityRules.length, 
+    JSON.stringify(projects.map(p => ({ id: p.id, status: p.status, priority: p.priority }))), 
+    JSON.stringify(availabilityRules.map(r => ({ id: r.id, isActive: r.isActive })))
+  ]);
 
   const handleCreateProject = async (projectData: {
     name: string;
@@ -95,6 +89,7 @@ const IndexContent = () => {
       if (result?.estimatedHoursChanged) {
         console.log('Estimated hours changed, recalculating schedule...');
         await recalculateSchedule();
+        await refetchScheduledSessions();
       }
     } catch (error) {
       // Error handling is done in the hook
@@ -102,7 +97,9 @@ const IndexContent = () => {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    await deleteProject(projectId, refetchScheduledSessions);
+    await deleteProject(projectId, async () => {
+      await refetchScheduledSessions();
+    });
   };
 
   const handleReorderProjects = async (reorderedProjects: any[]) => {
