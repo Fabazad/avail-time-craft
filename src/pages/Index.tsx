@@ -13,7 +13,6 @@ import { scheduleProjects } from '@/utils/schedulingEngine';
 import { toast } from 'sonner';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegration';
-import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { AuthGuard } from '@/components/AuthGuard';
 import { UserMenu } from '@/components/UserMenu';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -45,21 +44,14 @@ const IndexContent = () => {
     updateAvailabilityRules
   } = useAvailability();
 
-  const { events: googleCalendarEvents } = useGoogleCalendar();
-
   // Trigger automatic scheduling when projects or availability rules change
   const recalculateSchedule = useCallback(async () => {
     if (projects.length === 0 || availabilityRules.length === 0) return;
     
     setIsRecalculating(true);
     try {
-      // Convert Google Calendar events to conflict format
-      const externalConflicts = googleCalendarEvents.map(event => ({
-        start: new Date(event.start_time),
-        end: new Date(event.end_time)
-      }));
-
-      await scheduleProjects(projects, availabilityRules, externalConflicts);
+      // The scheduleProjects function now fetches Google Calendar events internally
+      await scheduleProjects(projects, availabilityRules);
       await refetchScheduledSessions();
       toast.success('Schedule updated with calendar conflicts considered');
     } catch (error) {
@@ -68,7 +60,7 @@ const IndexContent = () => {
     } finally {
       setIsRecalculating(false);
     }
-  }, [projects, availabilityRules, googleCalendarEvents, refetchScheduledSessions]);
+  }, [projects, availabilityRules, refetchScheduledSessions]);
 
   // Trigger recalculation when projects or availability rules change
   useEffect(() => {
