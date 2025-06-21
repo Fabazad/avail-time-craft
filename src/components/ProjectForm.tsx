@@ -4,8 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X } from 'lucide-react';
 
 interface ProjectFormProps {
   onSubmit: (project: {
@@ -42,79 +40,62 @@ export const ProjectForm = ({ onSubmit, onCancel }: ProjectFormProps) => {
   };
 
   return (
-    <Card className="border-0 shadow-none">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-xl font-semibold text-gray-800">
-          Create New Project
-        </CardTitle>
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+      <div className="space-y-2">
+        <Label htmlFor="name" className="text-sm font-medium">Project Name</Label>
+        <Input
+          id="name"
+          value={formData.name}
+          onChange={(e) => handleChange('name', e.target.value)}
+          placeholder="Enter project name..."
+          className="border-blue-200 focus:border-blue-400 h-10 sm:h-11"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="hours" className="text-sm font-medium">Estimated Hours</Label>
+        <Input
+          id="hours"
+          type="number"
+          min="0.5"
+          step="0.5"
+          value={formData.estimatedHours}
+          onChange={(e) => handleChange('estimatedHours', e.target.value)}
+          placeholder="0"
+          className="border-blue-200 focus:border-blue-400 h-10 sm:h-11"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description" className="text-sm font-medium">Description (Optional)</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => handleChange('description', e.target.value)}
+          placeholder="Add project details..."
+          className="border-blue-200 focus:border-blue-400 resize-none min-h-[80px]"
+          rows={3}
+        />
+      </div>
+
+      <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
         <Button 
-          variant="ghost" 
-          size="sm"
+          type="button" 
+          variant="outline" 
           onClick={onCancel}
-          className="h-8 w-8 p-0"
+          className="border-blue-200 hover:bg-blue-50 h-10 sm:h-11"
         >
-          <X className="h-4 w-4" />
+          Cancel
         </Button>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Project Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="Enter project name..."
-              className="border-blue-200 focus:border-blue-400"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="hours">Estimated Hours</Label>
-            <Input
-              id="hours"
-              type="number"
-              min="0.5"
-              step="0.5"
-              value={formData.estimatedHours}
-              onChange={(e) => handleChange('estimatedHours', e.target.value)}
-              placeholder="0"
-              className="border-blue-200 focus:border-blue-400"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Add project details..."
-              className="border-blue-200 focus:border-blue-400 resize-none"
-              rows={3}
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button 
-              type="submit" 
-              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-            >
-              Create Project
-            </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onCancel}
-              className="border-blue-200 hover:bg-blue-50"
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <Button 
+          type="submit" 
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 h-10 sm:h-11"
+        >
+          Create Project
+        </Button>
+      </div>
+    </form>
   );
 };

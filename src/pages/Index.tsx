@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -16,6 +17,7 @@ import { GoogleCalendarIntegration } from '@/components/GoogleCalendarIntegratio
 import { AuthGuard } from '@/components/AuthGuard';
 import { UserMenu } from '@/components/UserMenu';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
@@ -125,30 +127,30 @@ const IndexContent = () => {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="container mx-auto p-6 space-y-8">
+        <div className="container mx-auto p-3 sm:p-4 lg:p-6 space-y-6 sm:space-y-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-1 sm:mb-2">
                 Project Scheduler
               </h1>
-              <p className="text-gray-600">
+              <p className="text-sm sm:text-base text-gray-600">
                 Manage your projects and schedule work sessions efficiently
                 {isRecalculating && (
-                  <span className="ml-2 text-blue-600 text-sm">
+                  <span className="ml-2 text-blue-600 text-xs sm:text-sm">
                     <span className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></span>
                     Updating schedule...
                   </span>
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {activeTab === 'projects' && (
                 <Button 
                   onClick={() => setShowForm(true)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm sm:text-base"
                 >
-                  <Plus className="w-5 h-5 mr-2" />
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
                   New Project
                 </Button>
               )}
@@ -157,18 +159,18 @@ const IndexContent = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1 h-auto">
+              <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Projects
               </TabsTrigger>
-              <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Availability
               </TabsTrigger>
-              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Calendar
               </TabsTrigger>
             </TabsList>
@@ -214,12 +216,18 @@ const IndexContent = () => {
             </TabsContent>
           </Tabs>
 
-          {showForm && (
-            <ProjectForm 
-              onSubmit={handleCreateProject}
-              onCancel={() => setShowForm(false)}
-            />
-          )}
+          {/* Project Form Modal */}
+          <Dialog open={showForm} onOpenChange={setShowForm}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Project</DialogTitle>
+              </DialogHeader>
+              <ProjectForm 
+                onSubmit={handleCreateProject}
+                onCancel={() => setShowForm(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </TooltipProvider>
