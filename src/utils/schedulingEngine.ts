@@ -1,3 +1,4 @@
+
 import { Project, AvailabilityRule, ScheduledSession, TimeSlot } from '@/types';
 import { startOfDay, addDays, addHours, addMinutes, isBefore, isAfter, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -280,16 +281,52 @@ export class SchedulingEngine {
 }
 
 /**
- * Main function to schedule projects - clears existing scheduled sessions and creates new ones
- * Now includes Google Calendar conflict detection and event creation with toast notifications
- * Also deletes existing calendar events before creating new ones
+ * Main function to schedule projects - fetches Google Calendar events first to avoid conflicts
  */
 export const scheduleProjects = async (
   projects: Project[], 
-  availabilityRules: AvailabilityRule[], 
-  googleCalendarEvents: { start: Date; end: Date }[] = []
+  availabilityRules: AvailabilityRule[]
 ): Promise<void> => {
   const engine = new SchedulingEngine();
+  
+  // Fetch Google Calendar events to avoid conflicts
+  let googleCalendarEvents: { start: Date; end: Date }[] = [];
+  
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      // Check if user has an active calendar connection
+      const { data: connection } = await supabase
+        .from('calendar_connections')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('provider', 'google')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (connection) {
+        // Fetch Google Calendar events from the database
+        const { data: events } = await supabase
+          .from('google_calendar_events')
+          .select('start_time, end_time')
+          .eq('user_id', user.id)
+          .gte('end_time', new Date().toISOString());
+        
+        if (events) {
+          googleCalendarEvents = events.map(event => ({
+            start: new Date(event.start_time),
+            end: new Date(event.end_time)
+          }));
+          
+          console.log(`Found ${googleCalendarEvents.length} Google Calendar events to avoid conflicts with`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching Google Calendar events for conflict avoidance:', error);
+    // Continue with scheduling even if we can't fetch calendar events
+  }
   
   // Get existing scheduled sessions with Google Calendar events before deleting them
   const { data: existingSessions } = await supabase
@@ -365,7 +402,7 @@ export const scheduleProjects = async (
   // Generate new schedule with Google Calendar conflicts considered
   const newSessions = engine.generateSchedule(projects, availabilityRules, googleCalendarEvents);
   
-  console.log(`Generated ${newSessions.length} sessions for ${projects.length} projects`);
+  console.log(`Generated ${newSessions.length} sessions for ${projects.length} projects, avoiding ${googleCalendarEvents.length} Google Calendar conflicts`);
   
   // Save new sessions to database
   if (newSessions.length > 0) {
