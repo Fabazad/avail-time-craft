@@ -10,10 +10,13 @@ import { CalendarView } from '@/components/CalendarView';
 import { useProjects } from '@/hooks/useProjects';
 import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 import { useAvailability } from '@/hooks/useAvailability';
+import { scheduleProjects } from '@/utils/schedulingEngine';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'projects' | 'availability' | 'calendar'>('dashboard');
+  const [isRecalculating, setIsRecalculating] = useState(false);
   
   const { 
     projects, 
@@ -37,13 +40,41 @@ const Index = () => {
     updateAvailabilityRules
   } = useAvailability();
 
+  // Trigger automatic scheduling when projects or availability rules change
+  const recalculateSchedule = async () => {
+    if (projects.length === 0 || availabilityRules.length === 0 || isRecalculating) {
+      return;
+    }
+
+    console.log('Recalculating schedule with', projects.length, 'projects and', availabilityRules.length, 'availability rules');
+    setIsRecalculating(true);
+
+    try {
+      // Only schedule projects that are not completed
+      const activeProjects = projects.filter(p => p.status !== 'completed');
+      
+      if (activeProjects.length > 0) {
+        await scheduleProjects(activeProjects, availabilityRules);
+        await refetchSessions();
+        toast.success('Schedule updated successfully');
+      }
+    } catch (error) {
+      console.error('Error recalculating schedule:', error);
+      toast.error('Failed to update schedule');
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
   // Trigger recalculation when projects or availability rules change
   useEffect(() => {
-    // This effect will run when projects or availability rules change
-    // In a real implementation, you would trigger the scheduling engine here
-    console.log('Projects or availability rules changed, should recalculate schedules');
-    refetchSessions();
-  }, [projects.length, availabilityRules.length, refetchSessions]);
+    // Debounce the recalculation to avoid multiple calls
+    const timeoutId = setTimeout(() => {
+      recalculateSchedule();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [projects.length, availabilityRules.length, JSON.stringify(projects.map(p => ({ id: p.id, status: p.status, priority: p.priority }))), JSON.stringify(availabilityRules.map(r => ({ id: r.id, isActive: r.isActive })))]);
 
   const handleCreateProject = async (projectData: {
     name: string;
@@ -96,6 +127,12 @@ const Index = () => {
             </h1>
             <p className="text-gray-600">
               Manage your projects and schedule work sessions efficiently
+              {isRecalculating && (
+                <span className="ml-2 text-blue-600 text-sm">
+                  <span className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></span>
+                  Updating schedule...
+                </span>
+              )}
             </p>
           </div>
           {activeTab === 'projects' && (

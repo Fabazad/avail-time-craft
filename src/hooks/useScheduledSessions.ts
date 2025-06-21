@@ -65,6 +65,21 @@ export const useScheduledSessions = () => {
     }
   };
 
+  // Clear all scheduled sessions (used before recalculating)
+  const clearScheduledSessions = async () => {
+    try {
+      const { error } = await supabase
+        .from('scheduled_sessions')
+        .delete()
+        .eq('status', 'scheduled'); // Only delete scheduled sessions, keep completed ones
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error clearing scheduled sessions:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchScheduledSessions();
   }, []);
@@ -73,6 +88,7 @@ export const useScheduledSessions = () => {
     scheduledSessions,
     loading,
     completeSession,
+    clearScheduledSessions,
     refetch: fetchScheduledSessions
   };
 };
