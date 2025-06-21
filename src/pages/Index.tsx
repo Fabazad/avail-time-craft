@@ -1,8 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { Dashboard } from '@/components/Dashboard';
 import { ProjectForm } from '@/components/ProjectForm';
 import { AvailabilityManager } from '@/components/AvailabilityManager';
 import { CalendarView } from '@/components/CalendarView';
+import { SortableProjectsList } from '@/components/SortableProjectsList';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
