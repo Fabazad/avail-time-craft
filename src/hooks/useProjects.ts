@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Project } from '@/types';
@@ -45,6 +44,13 @@ export const useProjects = () => {
     description?: string;
   }) => {
     try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
       // Get the highest priority number to make this project the lowest priority
       const maxPriority = projects.length > 0 ? Math.max(...projects.map(p => p.priority)) : 0;
       
@@ -55,7 +61,8 @@ export const useProjects = () => {
           estimated_hours: projectData.estimatedHours,
           description: projectData.description,
           priority: maxPriority + 1,
-          status: 'pending'
+          status: 'pending',
+          user_id: user.id // Add the user ID
         })
         .select()
         .single();
