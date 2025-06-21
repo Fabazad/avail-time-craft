@@ -448,7 +448,103 @@ export class SchedulingEngine {
 }
 
 /**
- * Main function to schedule projects - fetches Google Calendar events first to avoid conflicts
+ * Fetches Google Calendar events directly from Google Calendar API
+ */
+const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: Date }[]> => {
+  console.log("=== FETCHING GOOGLE CALENDAR EVENTS DIRECTLY ===");
+  
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.log("User not authenticated - no calendar events to fetch");
+      return [];
+    }
+
+    // Check if user has an active calendar connection
+    const { data: connection } = await supabase
+      .from("calendar_connections")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("provider", "google")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!connection) {
+      console.log("No active Google Calendar connection found");
+      return [];
+    }
+
+    console.log("Active Google Calendar connection found, fetching events directly from API...");
+
+    // Use the sync function to get fresh data from Google Calendar API
+    const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-google-calendar');
+
+    if (syncError) {
+      console.error("Error syncing calendar:", syncError);
+      // Fall back to database if sync fails
+      return await fetchEventsFromDatabase(user.id);
+    }
+
+    console.log("Calendar sync successful:", syncResult);
+
+    // Now fetch the fresh events from database
+    return await fetchEventsFromDatabase(user.id);
+
+  } catch (error) {
+    console.error("Error fetching Google Calendar events directly:", error);
+    return [];
+  }
+};
+
+/**
+ * Helper function to fetch events from database after sync
+ */
+const fetchEventsFromDatabase = async (userId: string): Promise<{ start: Date; end: Date }[]> => {
+  const startDate = new Date();
+  const endDate = new Date();
+  endDate.setMonth(endDate.getMonth() + 3); // Look 3 months ahead
+
+  console.log(`Fetching fresh calendar events from database from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+  const { data: events, error } = await supabase
+    .from("google_calendar_events")
+    .select("start_time, end_time, summary")
+    .eq("user_id", userId)
+    .gte("end_time", startDate.toISOString())
+    .lte("start_time", endDate.toISOString());
+
+  if (error) {
+    console.error("Error fetching calendar events from database:", error);
+    return [];
+  }
+
+  if (!events || events.length === 0) {
+    console.log("No calendar events found in database");
+    return [];
+  }
+
+  const googleCalendarEvents = events
+    .filter((event) => event.start_time && event.end_time)
+    .map((event) => ({
+      start: new Date(event.start_time),
+      end: new Date(event.end_time),
+    }));
+
+  console.log(`Successfully processed ${googleCalendarEvents.length} fresh Google Calendar events`);
+
+  // Log events for debugging
+  googleCalendarEvents.forEach((event, index) => {
+    console.log(
+      `Fresh Calendar Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`
+    );
+  });
+
+  return googleCalendarEvents;
+};
+
+/**
+ * Main function to schedule projects - now fetches Google Calendar events directly from API
  */
 export const scheduleProjects = async (
   projects: Project[],
@@ -460,87 +556,8 @@ export const scheduleProjects = async (
 
   const engine = new SchedulingEngine();
 
-  // Fetch Google Calendar events to avoid conflicts - improved fetching
-  let googleCalendarEvents: { start: Date; end: Date }[] = [];
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      console.log("User authenticated, checking for calendar connection...");
-
-      // Check if user has an active calendar connection
-      const { data: connection } = await supabase
-        .from("calendar_connections")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("provider", "google")
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (connection) {
-        console.log("Active Google Calendar connection found, fetching events...");
-
-        // Fetch Google Calendar events from the database with expanded time range
-        const startDate = new Date();
-        const endDate = new Date();
-        endDate.setMonth(endDate.getMonth() + 3); // Look 3 months ahead
-
-        console.log(
-          `Fetching calendar events from ${startDate.toISOString()} to ${endDate.toISOString()}`
-        );
-
-        const { data: events, error } = await supabase
-          .from("google_calendar_events")
-          .select("start_time, end_time, summary")
-          .eq("user_id", user.id)
-          .gte("end_time", startDate.toISOString())
-          .lte("start_time", endDate.toISOString());
-
-        if (error) {
-          console.error("Error fetching Google Calendar events:", error);
-        } else {
-          console.log(`Raw events from database: ${events ? events.length : 0}`);
-
-          if (events && events.length > 0) {
-            googleCalendarEvents = events
-              .filter((event) => event.start_time && event.end_time) // Filter out invalid events
-              .map((event) => ({
-                start: new Date(event.start_time),
-                end: new Date(event.end_time),
-              }));
-
-            console.log(
-              `Successfully processed ${googleCalendarEvents.length} valid Google Calendar events for conflict avoidance`
-            );
-
-            // Log events for debugging
-            googleCalendarEvents.forEach((event, index) => {
-              console.log(
-                `Calendar Event ${
-                  index + 1
-                }: ${event.start.toISOString()} - ${event.end.toISOString()}`,
-                event
-              );
-            });
-          } else {
-            console.log("No Google Calendar events found in the specified time range");
-          }
-        }
-      } else {
-        console.log(
-          "No active Google Calendar connection found - scheduling without external conflicts"
-        );
-      }
-    } else {
-      console.log("User not authenticated - scheduling without external conflicts");
-    }
-  } catch (error) {
-    console.error("Error fetching Google Calendar events for conflict avoidance:", error);
-    // Continue with scheduling even if we can't fetch calendar events
-  }
+  // Fetch Google Calendar events directly from Google Calendar API (fresh data)
+  const googleCalendarEvents = await fetchGoogleCalendarEventsDirectly();
 
   // Get existing scheduled sessions with Google Calendar events before deleting them
   const { data: existingSessions } = await supabase
@@ -617,9 +634,9 @@ export const scheduleProjects = async (
     throw clearError;
   }
 
-  // Generate new schedule with Google Calendar conflicts considered
+  // Generate new schedule with fresh Google Calendar conflicts considered
   console.log(
-    `Passing ${googleCalendarEvents.length} external events to scheduling engine`
+    `Passing ${googleCalendarEvents.length} fresh external events to scheduling engine`
   );
   const newSessions = engine.generateSchedule(
     projects,
@@ -628,7 +645,7 @@ export const scheduleProjects = async (
   );
 
   console.log(
-    `Generated ${newSessions.length} sessions for ${projects.length} projects, successfully avoiding ${googleCalendarEvents.length} Google Calendar conflicts`
+    `Generated ${newSessions.length} sessions for ${projects.length} projects, successfully avoiding ${googleCalendarEvents.length} fresh Google Calendar conflicts`
   );
 
   // Save new sessions to database
