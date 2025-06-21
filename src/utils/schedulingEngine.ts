@@ -1,6 +1,7 @@
 import { Project, AvailabilityRule, ScheduledSession, TimeSlot } from '@/types';
 import { startOfDay, addDays, addHours, addMinutes, isBefore, isAfter, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export class SchedulingEngine {
   
@@ -280,7 +281,7 @@ export class SchedulingEngine {
 
 /**
  * Main function to schedule projects - clears existing scheduled sessions and creates new ones
- * Now includes Google Calendar conflict detection and event creation
+ * Now includes Google Calendar conflict detection and event creation with toast notifications
  */
 export const scheduleProjects = async (
   projects: Project[], 
@@ -330,7 +331,7 @@ export const scheduleProjects = async (
     
     console.log(`Successfully saved ${sessionsToInsert.length} sessions to database`);
     
-    // Create calendar events for the new sessions
+    // Create calendar events for the new sessions with individual toast notifications
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -344,7 +345,13 @@ export const scheduleProjects = async (
         .maybeSingle();
       
       if (connection && insertedSessions) {
-        // Create calendar events for each session
+        // Show initial toast for calendar event creation process
+        toast.info(`Creating ${insertedSessions.length} Google Calendar events...`);
+        
+        let successCount = 0;
+        let errorCount = 0;
+        
+        // Create calendar events for each session with individual notifications
         for (const session of insertedSessions) {
           try {
             await supabase.functions.invoke('create-calendar-event', {
@@ -356,15 +363,41 @@ export const scheduleProjects = async (
                 description: `Scheduled work session for ${session.project_name} (${session.duration} hours)`
               }
             });
+            
+            // Show success toast for individual event
+            toast.success(`Calendar event created for ${session.project_name}`, {
+              description: `${new Date(session.start_time).toLocaleString()} - ${new Date(session.end_time).toLocaleString()}`
+            });
+            
+            successCount++;
           } catch (eventError) {
             console.error(`Failed to create calendar event for session ${session.id}:`, eventError);
-            // Continue with other sessions even if one fails
+            
+            // Show error toast for individual event
+            toast.error(`Failed to create calendar event for ${session.project_name}`, {
+              description: eventError.message || 'Unknown error occurred'
+            });
+            
+            errorCount++;
           }
         }
-        console.log('Calendar events creation initiated for all sessions');
+        
+        // Show final summary toast
+        if (successCount > 0 && errorCount === 0) {
+          toast.success(`All ${successCount} calendar events created successfully!`);
+        } else if (successCount > 0 && errorCount > 0) {
+          toast.warning(`${successCount} events created, ${errorCount} failed`);
+        } else if (errorCount > 0) {
+          toast.error(`Failed to create all ${errorCount} calendar events`);
+        }
+        
+        console.log('Calendar events creation completed');
       }
     } catch (calendarError) {
       console.error('Error creating calendar events:', calendarError);
+      toast.error('Failed to create calendar events', {
+        description: calendarError.message || 'Unknown error occurred'
+      });
       // Don't throw here - sessions are created successfully, calendar events are optional
     }
   }

@@ -23,9 +23,18 @@ export const useCalendarEvents = () => {
 
       if (error) throw error;
 
+      // Show success toast for individual event
+      toast.success(`Calendar event created for ${session.projectName}`, {
+        description: `${session.startTime.toLocaleString()} - ${session.endTime.toLocaleString()}`
+      });
+
       return data;
     } catch (error) {
       console.error('Error creating calendar event:', error);
+      // Show error toast for individual event
+      toast.error(`Failed to create calendar event for ${session.projectName}`, {
+        description: error.message || 'Unknown error occurred'
+      });
       throw error;
     }
   };
@@ -34,6 +43,11 @@ export const useCalendarEvents = () => {
     const results = [];
     let successCount = 0;
     let errorCount = 0;
+
+    // Show initial toast indicating start of process
+    if (sessions.length > 0) {
+      toast.info(`Creating ${sessions.length} calendar events...`);
+    }
 
     for (const session of sessions) {
       try {
@@ -47,11 +61,13 @@ export const useCalendarEvents = () => {
 
     results.push({ successCount, errorCount });
 
-    if (successCount > 0) {
-      toast.success(`Created ${successCount} calendar events`);
-    }
-    if (errorCount > 0) {
-      toast.error(`Failed to create ${errorCount} calendar events`);
+    // Show final summary toast
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`All ${successCount} calendar events created successfully!`);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`${successCount} events created, ${errorCount} failed`);
+    } else if (errorCount > 0) {
+      toast.error(`Failed to create all ${errorCount} calendar events`);
     }
 
     return results;
