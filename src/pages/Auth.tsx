@@ -72,7 +72,7 @@ const Auth = () => {
         {/* Form Card */}
         <Card className="border border-gray-300 rounded-lg shadow-sm">
           <CardHeader className="px-10 pt-8 pb-6">
-            <div className="space-y-4">
+            <form onSubmit={handleAuth} className="space-y-4">
               <div>
                 <Input
                   type="email"
@@ -95,7 +95,7 @@ const Auth = () => {
                   className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 />
               </div>
-            </div>
+            </form>
           </CardHeader>
           
           <CardContent className="px-10 pb-8">
@@ -115,6 +115,7 @@ const Auth = () => {
                   onClick={handleAuth}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 h-9 text-sm font-medium rounded transition-colors shadow-sm"
                   disabled={loading}
+                  type="submit"
                 >
                   {loading ? (
                     <div className="flex items-center space-x-2">
@@ -122,7 +123,7 @@ const Auth = () => {
                       <span>Please wait...</span>
                     </div>
                   ) : (
-                    isLogin ? 'Next' : 'Create'
+                    isLogin ? 'Sign in' : 'Create'
                   )}
                 </Button>
               </div>
