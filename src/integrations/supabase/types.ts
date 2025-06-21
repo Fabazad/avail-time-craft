@@ -168,6 +168,7 @@ export type Database = {
           created_at: string
           duration: number
           end_time: string
+          google_event_id: string | null
           id: string
           priority: number
           project_id: string | null
@@ -181,6 +182,7 @@ export type Database = {
           created_at?: string
           duration: number
           end_time: string
+          google_event_id?: string | null
           id?: string
           priority: number
           project_id?: string | null
@@ -194,6 +196,7 @@ export type Database = {
           created_at?: string
           duration?: number
           end_time?: string
+          google_event_id?: string | null
           id?: string
           priority?: number
           project_id?: string | null
