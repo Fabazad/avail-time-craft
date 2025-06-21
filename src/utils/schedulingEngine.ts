@@ -521,7 +521,8 @@ export const scheduleProjects = async (
               console.log(
                 `Calendar Event ${
                   index + 1
-                }: ${event.start.toISOString()} - ${event.end.toISOString()}`
+                }: ${event.start.toISOString()} - ${event.end.toISOString()}`,
+                event
               );
             });
           } else {
