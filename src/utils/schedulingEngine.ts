@@ -15,7 +15,13 @@ export class SchedulingEngine {
   ): ScheduledSession[] {
     const activeProjects = projects.filter(p => p.status !== 'completed');
     const sortedProjects = this.sortProjectsByPriority(activeProjects);
-    const availableSlots = this.generateAvailableSlots(availabilityRules, 14); // 2 weeks ahead
+    
+    // Calculate how many weeks we need based on total project hours and available hours per week
+    const totalHours = sortedProjects.reduce((sum, p) => sum + p.estimatedHours, 0);
+    const avgHoursPerWeek = this.calculateAverageHoursPerWeek(availabilityRules);
+    const weeksNeeded = Math.max(8, Math.ceil(totalHours / Math.max(avgHoursPerWeek, 1)) + 2);
+    
+    const availableSlots = this.generateAvailableSlots(availabilityRules, weeksNeeded * 7);
     
     // Block time slots that conflict with external events (Google Calendar)
     this.blockExternalEvents(availableSlots, externalEvents);
@@ -58,7 +64,7 @@ export class SchedulingEngine {
         sessions.push(session);
         scheduledHours += sessionDuration;
         
-        // Mark slot as used - this was the issue!
+        // Mark slot as used
         slot.isAvailable = false;
       }
       
@@ -67,6 +73,26 @@ export class SchedulingEngine {
     }
     
     return sessions;
+  }
+  
+  /**
+   * Calculate average available hours per week
+   */
+  private calculateAverageHoursPerWeek(rules: AvailabilityRule[]): number {
+    const activeRules = rules.filter(rule => rule.isActive);
+    if (activeRules.length === 0) return 0;
+    
+    let totalHoursPerWeek = 0;
+    
+    for (const rule of activeRules) {
+      const startTime = this.parseTime(rule.startTime);
+      const endTime = this.parseTime(rule.endTime);
+      const hoursPerSession = endTime.hours - startTime.hours + (endTime.minutes - startTime.minutes) / 60;
+      const sessionsPerWeek = rule.dayOfWeek.length;
+      totalHoursPerWeek += hoursPerSession * sessionsPerWeek;
+    }
+    
+    return totalHoursPerWeek;
   }
   
   /**
@@ -264,13 +290,20 @@ export const scheduleProjects = async (
   const engine = new SchedulingEngine();
   
   // Clear existing scheduled sessions (keep completed ones)
-  await supabase
+  const { error: clearError } = await supabase
     .from('scheduled_sessions')
     .delete()
     .eq('status', 'scheduled');
+    
+  if (clearError) {
+    console.error('Error clearing existing sessions:', clearError);
+    throw clearError;
+  }
   
   // Generate new schedule with Google Calendar conflicts considered
   const newSessions = engine.generateSchedule(projects, availabilityRules, googleCalendarEvents);
+  
+  console.log(`Generated ${newSessions.length} sessions for ${projects.length} projects`);
   
   // Save new sessions to database
   if (newSessions.length > 0) {
@@ -293,5 +326,7 @@ export const scheduleProjects = async (
       console.error('Error saving scheduled sessions:', error);
       throw error;
     }
+    
+    console.log(`Successfully saved ${sessionsToInsert.length} sessions to database`);
   }
 };

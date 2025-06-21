@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Project } from '@/types';
@@ -150,18 +149,37 @@ export const useProjects = () => {
     }
   };
 
-  // Delete project - FIXED: Now properly waits for session deletion
+  // Delete project - Enhanced with better error handling and logging
   const deleteProject = async (projectId: string) => {
     try {
-      // First delete any scheduled sessions for this project and WAIT for completion
-      const { error: sessionsError } = await supabase
+      console.log(`Starting deletion of project ${projectId}`);
+      
+      // First, check if there are any sessions to delete
+      const { data: existingSessions, error: checkError } = await supabase
         .from('scheduled_sessions')
-        .delete()
+        .select('id')
         .eq('project_id', projectId);
+        
+      if (checkError) {
+        console.error('Error checking existing sessions:', checkError);
+        throw checkError;
+      }
+      
+      console.log(`Found ${existingSessions?.length || 0} sessions to delete for project ${projectId}`);
+      
+      // Delete any scheduled sessions for this project and WAIT for completion
+      if (existingSessions && existingSessions.length > 0) {
+        const { error: sessionsError } = await supabase
+          .from('scheduled_sessions')
+          .delete()
+          .eq('project_id', projectId);
 
-      if (sessionsError) {
-        console.error('Error deleting sessions:', sessionsError);
-        throw sessionsError;
+        if (sessionsError) {
+          console.error('Error deleting sessions:', sessionsError);
+          throw sessionsError;
+        }
+        
+        console.log(`Successfully deleted ${existingSessions.length} sessions`);
       }
 
       // Then delete the project
@@ -170,7 +188,12 @@ export const useProjects = () => {
         .delete()
         .eq('id', projectId);
 
-      if (projectError) throw projectError;
+      if (projectError) {
+        console.error('Error deleting project:', projectError);
+        throw projectError;
+      }
+      
+      console.log(`Successfully deleted project ${projectId}`);
 
       setProjects(prev => prev.filter(project => project.id !== projectId));
       toast.success('Project and associated sessions deleted successfully');
