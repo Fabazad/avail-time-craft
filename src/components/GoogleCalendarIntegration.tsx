@@ -67,9 +67,9 @@ export const GoogleCalendarIntegration = () => {
 
       const googleClientId = configData.clientId;
 
-      // Generate OAuth URL with correct redirect URI
+      // Generate OAuth URL with correct redirect URI and expanded scope for calendar write access
       const redirectUri = window.location.origin;
-      const scope = "https://www.googleapis.com/auth/calendar.readonly";
+      const scope = "https://www.googleapis.com/auth/calendar"; // Full calendar access (read/write)
       const state = crypto.randomUUID();
 
       // Store state for verification
@@ -215,8 +215,8 @@ export const GoogleCalendarIntegration = () => {
         {!connection ? (
           <div className="text-center space-y-4">
             <p className="text-gray-600">
-              Connect your Google Calendar to avoid scheduling conflicts with existing
-              events.
+              Connect your Google Calendar to sync your scheduled work sessions
+              and avoid scheduling conflicts with existing events.
             </p>
             <Button
               onClick={connectGoogleCalendar}
@@ -288,7 +288,7 @@ export const GoogleCalendarIntegration = () => {
             <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
               <AlertCircle className="w-3 h-3 inline mr-1" />
               Your scheduled sessions will automatically avoid conflicts with Google
-              Calendar events.
+              Calendar events and create calendar events for your work sessions.
             </div>
           </div>
         )}
