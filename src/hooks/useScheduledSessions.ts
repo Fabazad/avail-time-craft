@@ -24,7 +24,7 @@ export const useScheduledSessions = () => {
         projectName: session.project_name,
         startTime: new Date(session.start_time),
         endTime: new Date(session.end_time),
-        duration: parseFloat(session.duration),
+        duration: session.duration,
         status: session.status as 'scheduled' | 'completed' | 'conflicted',
         priority: session.priority,
         color: session.color

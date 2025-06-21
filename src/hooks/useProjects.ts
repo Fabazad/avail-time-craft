@@ -21,7 +21,7 @@ export const useProjects = () => {
       const formattedProjects: Project[] = data.map(project => ({
         id: project.id,
         name: project.name,
-        estimatedHours: parseFloat(project.estimated_hours),
+        estimatedHours: project.estimated_hours,
         priority: project.priority,
         status: project.status as 'pending' | 'scheduled' | 'completed',
         scheduledSessions: [],
@@ -65,7 +65,7 @@ export const useProjects = () => {
       const newProject: Project = {
         id: data.id,
         name: data.name,
-        estimatedHours: parseFloat(data.estimated_hours),
+        estimatedHours: data.estimated_hours,
         priority: data.priority,
         status: data.status,
         scheduledSessions: [],
@@ -117,22 +117,24 @@ export const useProjects = () => {
   // Update project priorities after drag and drop
   const updateProjectPriorities = async (reorderedProjects: Project[]) => {
     try {
-      const updates = reorderedProjects.map((project, index) => ({
-        id: project.id,
-        priority: index + 1
-      }));
-
-      const { error } = await supabase
-        .from('projects')
-        .upsert(
-          updates.map(update => ({
-            id: update.id,
-            priority: update.priority,
+      // Update each project's priority individually
+      const updatePromises = reorderedProjects.map((project, index) => 
+        supabase
+          .from('projects')
+          .update({ 
+            priority: index + 1,
             updated_at: new Date().toISOString()
-          }))
-        );
+          })
+          .eq('id', project.id)
+      );
 
-      if (error) throw error;
+      const results = await Promise.all(updatePromises);
+      
+      // Check if any updates failed
+      const failedUpdates = results.filter(result => result.error);
+      if (failedUpdates.length > 0) {
+        throw new Error('Some priority updates failed');
+      }
 
       // Update local state
       const updatedProjects = reorderedProjects.map((project, index) => ({
