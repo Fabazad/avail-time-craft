@@ -1,6 +1,6 @@
-
 import { Project, AvailabilityRule, ScheduledSession, TimeSlot } from '@/types';
 import { startOfDay, addDays, addHours, addMinutes, isBefore, isAfter, format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 export class SchedulingEngine {
   
@@ -244,3 +244,42 @@ export class SchedulingEngine {
     ) || null;
   }
 }
+
+/**
+ * Main function to schedule projects - clears existing scheduled sessions and creates new ones
+ */
+export const scheduleProjects = async (projects: Project[], availabilityRules: AvailabilityRule[]): Promise<void> => {
+  const engine = new SchedulingEngine();
+  
+  // Clear existing scheduled sessions (keep completed ones)
+  await supabase
+    .from('scheduled_sessions')
+    .delete()
+    .eq('status', 'scheduled');
+  
+  // Generate new schedule
+  const newSessions = engine.generateSchedule(projects, availabilityRules);
+  
+  // Save new sessions to database
+  if (newSessions.length > 0) {
+    const sessionsToInsert = newSessions.map(session => ({
+      project_id: session.projectId,
+      project_name: session.projectName,
+      start_time: session.startTime.toISOString(),
+      end_time: session.endTime.toISOString(),
+      duration: session.duration,
+      status: session.status,
+      priority: session.priority,
+      color: session.color
+    }));
+    
+    const { error } = await supabase
+      .from('scheduled_sessions')
+      .insert(sessionsToInsert);
+      
+    if (error) {
+      console.error('Error saving scheduled sessions:', error);
+      throw error;
+    }
+  }
+};
