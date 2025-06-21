@@ -477,70 +477,15 @@ const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: 
 
     console.log("Active Google Calendar connection found, fetching events directly from API...");
 
-    // Use the sync function to get fresh data from Google Calendar API
-    const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-google-calendar');
-
-    if (syncError) {
-      console.error("Error syncing calendar:", syncError);
-      // Fall back to database if sync fails
-      return await fetchEventsFromDatabase(user.id);
-    }
-
-    console.log("Calendar sync successful:", syncResult);
-
-    // Now fetch the fresh events from database
-    return await fetchEventsFromDatabase(user.id);
+    // Since we no longer store events in the database, we need to fetch them directly
+    // from Google Calendar API. For now, return empty array until we implement direct API calls
+    console.log("Direct Google Calendar API fetching not yet implemented - returning empty array");
+    return [];
 
   } catch (error) {
     console.error("Error fetching Google Calendar events directly:", error);
     return [];
   }
-};
-
-/**
- * Helper function to fetch events from database after sync
- */
-const fetchEventsFromDatabase = async (userId: string): Promise<{ start: Date; end: Date }[]> => {
-  const startDate = new Date();
-  const endDate = new Date();
-  endDate.setMonth(endDate.getMonth() + 3); // Look 3 months ahead
-
-  console.log(`Fetching fresh calendar events from database from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-
-  const { data: events, error } = await supabase
-    .from("google_calendar_events")
-    .select("start_time, end_time, summary")
-    .eq("user_id", userId)
-    .gte("end_time", startDate.toISOString())
-    .lte("start_time", endDate.toISOString());
-
-  if (error) {
-    console.error("Error fetching calendar events from database:", error);
-    return [];
-  }
-
-  if (!events || events.length === 0) {
-    console.log("No calendar events found in database");
-    return [];
-  }
-
-  const googleCalendarEvents = events
-    .filter((event) => event.start_time && event.end_time)
-    .map((event) => ({
-      start: new Date(event.start_time),
-      end: new Date(event.end_time),
-    }));
-
-  console.log(`Successfully processed ${googleCalendarEvents.length} fresh Google Calendar events`);
-
-  // Log events for debugging
-  googleCalendarEvents.forEach((event, index) => {
-    console.log(
-      `Fresh Calendar Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`
-    );
-  });
-
-  return googleCalendarEvents;
 };
 
 /**
