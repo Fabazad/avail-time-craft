@@ -1,12 +1,11 @@
-
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Calendar, RefreshCw, Unlink, CheckCircle, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { AlertCircle, Calendar, CheckCircle, RefreshCw, Unlink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface CalendarConnection {
   id: string;
@@ -28,17 +27,17 @@ export const GoogleCalendarIntegration = () => {
   const fetchConnection = async () => {
     try {
       const { data, error } = await supabase
-        .from('calendar_connections')
-        .select('*')
-        .eq('provider', 'google')
-        .eq('is_active', true)
+        .from("calendar_connections")
+        .select("*")
+        .eq("provider", "google")
+        .eq("is_active", true)
         .maybeSingle();
 
       if (error) throw error;
       setConnection(data);
     } catch (error) {
-      console.error('Error fetching calendar connection:', error);
-      toast.error('Failed to load calendar connection');
+      console.error("Error fetching calendar connection:", error);
+      toast.error("Failed to load calendar connection");
     } finally {
       setLoading(false);
     }
@@ -49,11 +48,13 @@ export const GoogleCalendarIntegration = () => {
     setConnecting(true);
     try {
       // Generate OAuth URL
-      const clientId = 'YOUR_GOOGLE_CLIENT_ID'; // This will be set via secrets
+      const clientId =
+        "876859983904-k6g72a171qlif48gjgoalo3fd94cbnrk.apps.googleusercontent.com"; // This will be set via secrets
       const redirectUri = `${window.location.origin}/api/auth/google/callback`;
-      const scope = 'https://www.googleapis.com/auth/calendar.readonly';
-      
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      const scope = "https://www.googleapis.com/auth/calendar.readonly";
+
+      const authUrl =
+        `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${clientId}&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `response_type=code&` +
@@ -62,11 +63,12 @@ export const GoogleCalendarIntegration = () => {
         `prompt=consent`;
 
       // For now, show instructions to user
-      toast.info('Google Calendar integration requires setup. Please configure your Google OAuth credentials.');
-      
+      toast.info(
+        "Google Calendar integration requires setup. Please configure your Google OAuth credentials."
+      );
     } catch (error) {
-      console.error('Error connecting to Google Calendar:', error);
-      toast.error('Failed to connect to Google Calendar');
+      console.error("Error connecting to Google Calendar:", error);
+      toast.error("Failed to connect to Google Calendar");
     } finally {
       setConnecting(false);
     }
@@ -75,18 +77,18 @@ export const GoogleCalendarIntegration = () => {
   // Sync calendar events
   const syncCalendar = async () => {
     if (!connection) return;
-    
+
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-google-calendar');
+      const { data, error } = await supabase.functions.invoke("sync-google-calendar");
 
       if (error) throw error;
 
-      toast.success(data.message || 'Calendar synced successfully');
+      toast.success(data.message || "Calendar synced successfully");
       await fetchConnection(); // Refresh connection data
     } catch (error) {
-      console.error('Error syncing calendar:', error);
-      toast.error('Failed to sync calendar');
+      console.error("Error syncing calendar:", error);
+      toast.error("Failed to sync calendar");
     } finally {
       setSyncing(false);
     }
@@ -98,17 +100,17 @@ export const GoogleCalendarIntegration = () => {
 
     try {
       const { error } = await supabase
-        .from('calendar_connections')
+        .from("calendar_connections")
         .update({ is_active: false })
-        .eq('id', connection.id);
+        .eq("id", connection.id);
 
       if (error) throw error;
 
       setConnection(null);
-      toast.success('Google Calendar disconnected');
+      toast.success("Google Calendar disconnected");
     } catch (error) {
-      console.error('Error disconnecting calendar:', error);
-      toast.error('Failed to disconnect calendar');
+      console.error("Error disconnecting calendar:", error);
+      toast.error("Failed to disconnect calendar");
     }
   };
 
@@ -138,7 +140,8 @@ export const GoogleCalendarIntegration = () => {
         {!connection ? (
           <div className="text-center space-y-4">
             <p className="text-gray-600">
-              Connect your Google Calendar to avoid scheduling conflicts with existing events.
+              Connect your Google Calendar to avoid scheduling conflicts with existing
+              events.
             </p>
             <Button
               onClick={connectGoogleCalendar}
@@ -158,7 +161,8 @@ export const GoogleCalendarIntegration = () => {
               )}
             </Button>
             <p className="text-xs text-gray-500">
-              Note: Google OAuth setup required. Contact administrator to configure credentials.
+              Note: Google OAuth setup required. Contact administrator to configure
+              credentials.
             </p>
           </div>
         ) : (
@@ -185,9 +189,7 @@ export const GoogleCalendarIntegration = () => {
             <div className="text-sm text-gray-600 space-y-1">
               <div>Calendar ID: {connection.calendar_id}</div>
               {connection.last_sync_at && (
-                <div>
-                  Last synced: {format(new Date(connection.last_sync_at), 'PPp')}
-                </div>
+                <div>Last synced: {format(new Date(connection.last_sync_at), "PPp")}</div>
               )}
             </div>
 
@@ -214,7 +216,8 @@ export const GoogleCalendarIntegration = () => {
 
             <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
               <AlertCircle className="w-3 h-3 inline mr-1" />
-              Your scheduled sessions will automatically avoid conflicts with Google Calendar events.
+              Your scheduled sessions will automatically avoid conflicts with Google
+              Calendar events.
             </div>
           </div>
         )}
