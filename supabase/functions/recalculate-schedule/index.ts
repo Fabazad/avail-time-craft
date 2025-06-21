@@ -240,6 +240,20 @@ function generateScheduleWithWhileLoop(
       if (applicableRule) {
         console.log(`Checking ${currentDate.toDateString()} (day ${dayOfWeek}) in Paris time`);
         
+        // Check if this entire day is blocked by all-day events
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(23, 59, 59, 999);
+        
+        const hasDayBlockingEvent = checkForAllDayEventConflict(dayStart, dayEnd, externalEvents);
+        
+        if (hasDayBlockingEvent) {
+          console.log(`❌ Entire day blocked by all-day event: ${currentDate.toDateString()}`);
+          currentDate.setDate(currentDate.getDate() + 1);
+          continue;
+        }
+        
         // Create potential session for this day in Paris timezone
         const startTime = parseTime(applicableRule.start_time);
         const endTime = parseTime(applicableRule.end_time);
@@ -347,13 +361,49 @@ function convertParisToUTC(parisDate: Date): Date {
   return new Date(parisDate.getTime() - offset);
 }
 
+// Updated: Check for all-day events that block an entire day
+function checkForAllDayEventConflict(dayStart: Date, dayEnd: Date, externalEvents: any[]): boolean {
+  if (!externalEvents || externalEvents.length === 0) return false;
+  
+  for (const event of externalEvents) {
+    if (!event.start || !event.end) continue;
+    
+    const eventStart = new Date(event.start);
+    const eventEnd = new Date(event.end);
+    
+    // Check if it's an all-day event (exactly 24 hours or more, starting at midnight)
+    const isAllDay = (
+      eventStart.getHours() === 0 && 
+      eventStart.getMinutes() === 0 && 
+      eventStart.getSeconds() === 0 &&
+      (eventEnd.getTime() - eventStart.getTime()) >= 24 * 60 * 60 * 1000
+    );
+    
+    if (isAllDay) {
+      // Check if the all-day event covers any part of this day, block the entire day
+      const dayStartTime = dayStart.getTime();
+      const dayEndTime = dayEnd.getTime();
+      const eventStartTime = eventStart.getTime();
+      const eventEndTime = eventEnd.getTime();
+      
+      // If the all-day event covers any part of this day, block the entire day
+      if (eventStartTime <= dayEndTime && eventEndTime >= dayStartTime) {
+        console.log(`All-day event blocks day: ${event.start} - ${event.end}`);
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 function checkConflictWithExternalEvents(sessionStart: Date, sessionEnd: Date, externalEvents: any[]): boolean {
   if (!externalEvents || externalEvents.length === 0) return false;
   
   for (const event of externalEvents) {
     if (!event.start || !event.end) continue;
     
-    // Skip all-day events (they typically don't conflict with specific time slots)
+    // Skip all-day events (they are handled separately by checkForAllDayEventConflict)
     const eventStart = new Date(event.start);
     const eventEnd = new Date(event.end);
     
