@@ -196,7 +196,7 @@ async function fetchGoogleCalendarEvents(supabaseClient: any) {
   return [];
 }
 
-// Updated: While loop approach for scheduling with Paris timezone
+// Updated: While loop approach for scheduling with session conflict detection
 function generateScheduleWithWhileLoop(
   projects: any[],
   availabilityRules: any[],
@@ -296,9 +296,12 @@ function generateScheduleWithWhileLoop(
           const sessionEndUTC = convertParisToUTC(actualSessionEnd);
           
           // Check for conflicts with external events (in UTC)
-          const hasConflict = checkConflictWithExternalEvents(sessionStartUTC, sessionEndUTC, externalEvents);
+          const hasExternalConflict = checkConflictWithExternalEvents(sessionStartUTC, sessionEndUTC, externalEvents);
           
-          if (!hasConflict) {
+          // Check for conflicts with already scheduled sessions
+          const hasSessionConflict = checkConflictWithScheduledSessions(sessionStartUTC, sessionEndUTC, sessions);
+          
+          if (!hasExternalConflict && !hasSessionConflict) {
             // No conflict - create the session (store in UTC)
             const session: ScheduledSession = {
               id: `${project.id}-${sessions.length}`,
@@ -319,7 +322,12 @@ function generateScheduleWithWhileLoop(
             console.log(`   UTC storage: ${sessionStartUTC.toISOString()} - ${sessionEndUTC.toISOString()}`);
             console.log(`Remaining hours: ${remainingHours}h`);
           } else {
-            console.log(`❌ Conflict detected for: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} - ${actualSessionEnd.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
+            if (hasExternalConflict) {
+              console.log(`❌ External conflict detected for: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} - ${actualSessionEnd.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
+            }
+            if (hasSessionConflict) {
+              console.log(`❌ Session conflict detected for: ${sessionStart.toLocaleString('en-US', {timeZone: parisTimezone})} - ${actualSessionEnd.toLocaleString('en-US', {timeZone: parisTimezone})} Paris time`);
+            }
           }
         }
       }
@@ -346,6 +354,22 @@ function generateScheduleWithWhileLoop(
   console.log(`\n=== SCHEDULING COMPLETE ===`);
   console.log(`Total sessions created: ${sessions.length}`);
   return sessions;
+}
+
+// Updated: Check for conflicts with already scheduled sessions
+function checkConflictWithScheduledSessions(sessionStart: Date, sessionEnd: Date, scheduledSessions: ScheduledSession[]): boolean {
+  if (!scheduledSessions || scheduledSessions.length === 0) return false;
+  
+  for (const session of scheduledSessions) {
+    // Check if the potential session overlaps with any existing session
+    const hasOverlap = sessionStart < session.endTime && session.startTime < sessionEnd;
+    if (hasOverlap) {
+      console.log(`Conflict with existing session: ${session.startTime.toISOString()} - ${session.endTime.toISOString()} (${session.projectName})`);
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // Helper function to convert Paris time to UTC

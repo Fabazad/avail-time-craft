@@ -1,4 +1,3 @@
-
 import { Project, AvailabilityRule, ScheduledSession } from '@/types';
 
 interface TimeSlot {
@@ -100,7 +99,7 @@ export class SchedulingEngine {
         const sessionStart = slot.start;
         const sessionEnd = new Date(slot.start.getTime() + sessionDuration * 60 * 60 * 1000);
 
-        // Double-check for conflicts with valid external events
+        // Check for conflicts with external events
         if (validExternalEvents.length > 0) {
           const hasConflict = this.hasConflictWithExternalEvents(
             sessionStart,
@@ -108,10 +107,22 @@ export class SchedulingEngine {
             validExternalEvents
           );
           if (hasConflict) {
-            console.log(`Conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
+            console.log(`External conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
             slot.isAvailable = false;
             continue;
           }
+        }
+
+        // Check for conflicts with already scheduled sessions from other projects
+        const hasSessionConflict = this.hasConflictWithScheduledSessions(
+          sessionStart,
+          sessionEnd,
+          sessions
+        );
+        if (hasSessionConflict) {
+          console.log(`Session conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
+          slot.isAvailable = false;
+          continue;
         }
 
         // Create session
@@ -263,6 +274,19 @@ export class SchedulingEngine {
     return externalEvents.some((event) => {
       if (!event.start || !event.end) return false;
       return sessionStart < event.end && event.start < sessionEnd;
+    });
+  }
+
+  private hasConflictWithScheduledSessions(
+    sessionStart: Date,
+    sessionEnd: Date,
+    scheduledSessions: ScheduledSession[]
+  ): boolean {
+    if (!scheduledSessions || scheduledSessions.length === 0) return false;
+    
+    return scheduledSessions.some((session) => {
+      // Check if the potential session overlaps with any existing session
+      return sessionStart < session.endTime && session.startTime < sessionEnd;
     });
   }
 
