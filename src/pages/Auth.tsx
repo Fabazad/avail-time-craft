@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -54,82 +54,91 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-3 sm:p-4 lg:p-6">
-      <Card className="w-full max-w-sm sm:max-w-md shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader className="text-center px-4 sm:px-6 pt-6 sm:pt-8 pb-4 sm:pb-6">
-          <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
-            {isLogin ? 'Welcome Back' : 'Create Account'}
-          </CardTitle>
-          <CardDescription className="text-sm sm:text-base text-gray-600 leading-relaxed px-2">
-            {isLogin 
-              ? 'Sign in to your account to continue' 
-              : 'Sign up to get started with Project Scheduler'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-4 sm:px-6 pb-6 sm:pb-8">
-          <form onSubmit={handleAuth} className="space-y-4 sm:space-y-5">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700 block">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11 sm:h-12 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500 transition-colors"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700 block">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="h-11 sm:h-12 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500 transition-colors"
-              />
-            </div>
-
-            <Button 
-              type="submit" 
-              className="w-full h-11 sm:h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-base sm:text-lg transition-all duration-200 shadow-md hover:shadow-lg mt-6 sm:mt-8"
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Please wait...</span>
-                </div>
-              ) : (
-                isLogin ? 'Sign In' : 'Sign Up'
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-6 sm:mt-8 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm sm:text-base text-blue-600 hover:text-blue-700 underline underline-offset-4 transition-colors duration-200 font-medium"
-            >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
-            </button>
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        {/* Google Logo Area */}
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+            <span className="text-white text-2xl font-bold">PS</span>
           </div>
-        </CardContent>
-      </Card>
+          <h1 className="text-2xl font-normal text-gray-900 mb-2">
+            {isLogin ? 'Sign in' : 'Create your Account'}
+          </h1>
+          <p className="text-sm text-gray-600">
+            {isLogin ? 'to continue to Project Scheduler' : 'to get started with Project Scheduler'}
+          </p>
+        </div>
+
+        {/* Form Card */}
+        <Card className="border border-gray-300 rounded-lg shadow-sm">
+          <CardHeader className="px-10 pt-8 pb-6">
+            <div className="space-y-4">
+              <div>
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                />
+              </div>
+              
+              <div>
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="px-10 pb-8">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  {isLogin ? 'Create account' : 'Sign in instead'}
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleAuth}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 h-9 text-sm font-medium rounded transition-colors shadow-sm"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Please wait...</span>
+                    </div>
+                  ) : (
+                    isLogin ? 'Next' : 'Create'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <div className="flex justify-center space-x-6 text-xs text-gray-500">
+            <a href="#" className="hover:text-gray-700 transition-colors">Privacy</a>
+            <a href="#" className="hover:text-gray-700 transition-colors">Terms</a>
+            <a href="#" className="hover:text-gray-700 transition-colors">Help</a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
