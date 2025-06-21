@@ -501,7 +501,7 @@ const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: 
 };
 
 /**
- * Main function to schedule projects - now fetches Google Calendar events directly from API
+ * Main function to schedule projects - now with proper order of operations
  */
 export const scheduleProjects = async (
   projects: Project[],
@@ -513,17 +513,14 @@ export const scheduleProjects = async (
 
   const engine = new SchedulingEngine();
 
-  // Fetch Google Calendar events directly from Google Calendar API (fresh data)
-  const googleCalendarEvents = await fetchGoogleCalendarEventsDirectly();
-
-  // Get existing scheduled sessions with Google Calendar events before deleting them
+  // STEP 1: Get existing scheduled sessions with Google Calendar events before deleting them
   const { data: existingSessions } = await supabase
     .from("scheduled_sessions")
     .select("google_event_id, project_name")
     .eq("status", "scheduled")
     .not("google_event_id", "is", null);
 
-  // Delete existing calendar events first
+  // STEP 2: Delete existing calendar events FIRST
   if (existingSessions && existingSessions.length > 0) {
     try {
       const {
@@ -580,7 +577,7 @@ export const scheduleProjects = async (
     }
   }
 
-  // Clear existing scheduled sessions (keep completed ones)
+  // STEP 3: Clear existing scheduled sessions from database
   const { error: clearError } = await supabase
     .from("scheduled_sessions")
     .delete()
@@ -591,7 +588,10 @@ export const scheduleProjects = async (
     throw clearError;
   }
 
-  // Generate new schedule with fresh Google Calendar conflicts considered
+  // STEP 4: Fetch fresh Google Calendar events AFTER deleting existing ones
+  const googleCalendarEvents = await fetchGoogleCalendarEventsDirectly();
+
+  // STEP 5: Generate new schedule with fresh Google Calendar conflicts considered
   console.log(
     `Passing ${googleCalendarEvents.length} fresh external events to scheduling engine`
   );
@@ -605,7 +605,7 @@ export const scheduleProjects = async (
     `Generated ${newSessions.length} sessions for ${projects.length} projects, successfully avoiding ${googleCalendarEvents.length} fresh Google Calendar conflicts`
   );
 
-  // Save new sessions to database
+  // STEP 6: Save new sessions to database
   if (newSessions.length > 0) {
     const sessionsToInsert = newSessions.map((session) => ({
       project_id: session.projectId,
@@ -630,7 +630,7 @@ export const scheduleProjects = async (
 
     console.log(`Successfully saved ${sessionsToInsert.length} sessions to database`);
 
-    // Create calendar events for the new sessions with individual toast notifications
+    // STEP 7: Create NEW calendar events for the new sessions
     try {
       const {
         data: { user },
