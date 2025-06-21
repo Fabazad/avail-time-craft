@@ -1,63 +1,76 @@
-import { supabase } from "@/integrations/supabase/client";
-import { AvailabilityRule, Project, ScheduledSession, TimeSlot } from "@/types";
-import { addDays, addHours, addMinutes, isAfter, isBefore, startOfDay } from "date-fns";
-import { toast } from "sonner";
+
+import { Project, AvailabilityRule, ScheduledSession } from '@/types';
+
+interface TimeSlot {
+  start: Date;
+  end: Date;
+  duration: number;
+  isAvailable: boolean;
+}
+
+interface ExternalEvent {
+  start: Date;
+  end: Date;
+}
 
 export class SchedulingEngine {
-  /**
-   * Generates a complete schedule for all projects based on availability rules
-   * Now includes conflict detection with Google Calendar events
-   */
   generateSchedule(
     projects: Project[],
     availabilityRules: AvailabilityRule[],
-    externalEvents: { start: Date; end: Date }[] = []
+    externalEvents: ExternalEvent[] = []
   ): ScheduledSession[] {
-    console.log("=== SCHEDULING DEBUG ===");
+    console.log("=== SCHEDULING ENGINE DEBUG ===");
     console.log("Projects:", projects.length);
     console.log("Availability rules:", availabilityRules.length);
-    console.log(
-      "External events received:",
-      externalEvents ? externalEvents.length : "null/undefined"
-    );
+    console.log("External events:", externalEvents.length);
 
     const activeProjects = projects.filter((p) => p.status !== "completed");
     const sortedProjects = this.sortProjectsByPriority(activeProjects);
 
-    // Calculate how many weeks we need based on total project hours and available hours per week
+    console.log("Active projects after filtering:", activeProjects.length);
+    
+    if (activeProjects.length === 0) {
+      console.log("No active projects to schedule");
+      return [];
+    }
+
+    if (availabilityRules.length === 0) {
+      console.log("No availability rules found");
+      return [];
+    }
+
     const totalHours = sortedProjects.reduce((sum, p) => sum + p.estimatedHours, 0);
+    console.log("Total hours to schedule:", totalHours);
+    
     const avgHoursPerWeek = this.calculateAverageHoursPerWeek(availabilityRules);
-    const weeksNeeded = Math.max(
-      8,
-      Math.ceil(totalHours / Math.max(avgHoursPerWeek, 1)) + 2
-    );
+    console.log("Average hours per week from availability:", avgHoursPerWeek);
+    
+    const weeksNeeded = Math.max(8, Math.ceil(totalHours / Math.max(avgHoursPerWeek, 1)) + 2);
+    console.log("Weeks needed for scheduling:", weeksNeeded);
 
-    const availableSlots = this.generateAvailableSlots(
-      availabilityRules,
-      weeksNeeded * 7
+    const availableSlots = this.generateAvailableSlots(availabilityRules, weeksNeeded * 7);
+    console.log("Generated available slots:", availableSlots.length);
+    
+    // Debug: Log some example slots
+    availableSlots.slice(0, 5).forEach((slot, index) => {
+      console.log(`Slot ${index + 1}: ${slot.start.toISOString()} - ${slot.end.toISOString()}, duration: ${slot.duration}h, available: ${slot.isAvailable}`);
+    });
+    
+    // Only process external events if they exist and are valid
+    const validExternalEvents = externalEvents.filter(event => 
+      event && event.start && event.end && 
+      event.start instanceof Date && event.end instanceof Date &&
+      !isNaN(event.start.getTime()) && !isNaN(event.end.getTime())
     );
-    console.log("Generated slots:", availableSlots.length);
-
-    // Only block time slots if there are actual external events
-    const validExternalEvents =
-      externalEvents && Array.isArray(externalEvents) ? externalEvents : [];
+    
     console.log("Valid external events to process:", validExternalEvents.length);
-
+    
     if (validExternalEvents.length > 0) {
       console.log("Blocking external calendar events from scheduling...");
-      validExternalEvents.forEach((event, index) => {
-        console.log(
-          `Event ${
-            index + 1
-          }: ${event.start?.toISOString()} - ${event.end?.toISOString()}`,
-          event
-        );
-      });
-      this.blockExternalEventsImproved(availableSlots, validExternalEvents);
-    } else {
-      console.log(
-        "No external calendar events found - scheduling from earliest available slots"
-      );
+      this.blockExternalEvents(availableSlots, validExternalEvents);
+      
+      const availableSlotsAfterBlocking = availableSlots.filter(slot => slot.isAvailable);
+      console.log("Available slots after blocking external events:", availableSlotsAfterBlocking.length);
     }
 
     const sessions: ScheduledSession[] = [];
@@ -66,17 +79,14 @@ export class SchedulingEngine {
     // Schedule projects in priority order
     for (const project of sortedProjects) {
       const hoursNeeded = remainingHours.get(project.id) || 0;
+      console.log(`Processing project ${project.name}, needs ${hoursNeeded} hours`);
 
       if (hoursNeeded <= 0) continue;
 
       let scheduledHours = 0;
 
       // Find suitable time slots for this project
-      for (
-        let slotIndex = 0;
-        slotIndex < availableSlots.length && scheduledHours < hoursNeeded;
-        slotIndex++
-      ) {
+      for (let slotIndex = 0; slotIndex < availableSlots.length && scheduledHours < hoursNeeded; slotIndex++) {
         const slot = availableSlots[slotIndex];
 
         if (!slot.isAvailable) {
@@ -88,9 +98,9 @@ export class SchedulingEngine {
 
         // Create potential session
         const sessionStart = slot.start;
-        const sessionEnd = addHours(slot.start, sessionDuration);
+        const sessionEnd = new Date(slot.start.getTime() + sessionDuration * 60 * 60 * 1000);
 
-        // Only check for conflicts if there are external events
+        // Double-check for conflicts with valid external events
         if (validExternalEvents.length > 0) {
           const hasConflict = this.hasConflictWithExternalEvents(
             sessionStart,
@@ -98,9 +108,7 @@ export class SchedulingEngine {
             validExternalEvents
           );
           if (hasConflict) {
-            console.log(
-              `Conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`
-            );
+            console.log(`Conflict detected - skipping slot: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`);
             slot.isAvailable = false;
             continue;
           }
@@ -125,131 +133,94 @@ export class SchedulingEngine {
         // Mark slot as used
         slot.isAvailable = false;
 
-        console.log(
-          `Scheduled session for ${
-            project.name
-          }: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}`
-        );
+        console.log(`Scheduled session for ${project.name}: ${sessionStart.toISOString()} - ${sessionEnd.toISOString()}, duration: ${sessionDuration}h`);
       }
 
       // Update remaining hours
-      remainingHours.set(project.id, hoursNeeded - scheduledHours);
+      const remaining = hoursNeeded - scheduledHours;
+      remainingHours.set(project.id, remaining);
+      
+      if (remaining > 0) {
+        console.log(`Warning: Could not schedule all hours for ${project.name}. Remaining: ${remaining}h`);
+      }
     }
 
     console.log(`Generated ${sessions.length} total sessions`);
-    console.log("=== END SCHEDULING DEBUG ===");
-
     return sessions;
   }
 
-  /**
-   * Improved method to check for conflicts with external events
-   */
-  private hasConflictWithExternalEvents(
-    sessionStart: Date,
-    sessionEnd: Date,
-    externalEvents: { start: Date; end: Date }[]
-  ): boolean {
-    // If no external events, there's no conflict
-    if (!externalEvents || externalEvents.length === 0) {
-      return false;
-    }
-
-    return externalEvents.some((event) => {
-      // Ensure event dates are valid
-      if (!event.start || !event.end) {
-        console.warn("Invalid event detected:", event);
-        return false;
-      }
-
-      // Check if the session overlaps with any external event
-      // Two time ranges overlap if: start1 < end2 AND start2 < end1
-      const overlaps = sessionStart < event.end && event.start < sessionEnd;
-
-      if (overlaps) {
-        console.log(
-          `Conflict detected between session (${sessionStart.toISOString()} - ${sessionEnd.toISOString()}) and external event (${event.start.toISOString()} - ${event.end.toISOString()})`
-        );
-      }
-
-      return overlaps;
-    });
+  private sortProjectsByPriority(projects: Project[]): Project[] {
+    return [...projects].sort((a, b) => a.priority - b.priority);
   }
 
-  /**
-   * Calculate average available hours per week
-   */
   private calculateAverageHoursPerWeek(rules: AvailabilityRule[]): number {
     const activeRules = rules.filter((rule) => rule.isActive);
     if (activeRules.length === 0) return 0;
 
     let totalHoursPerWeek = 0;
-
     for (const rule of activeRules) {
       const startTime = this.parseTime(rule.startTime);
       const endTime = this.parseTime(rule.endTime);
-      const hoursPerSession =
-        endTime.hours - startTime.hours + (endTime.minutes - startTime.minutes) / 60;
+      const hoursPerSession = endTime.hours - startTime.hours + (endTime.minutes - startTime.minutes) / 60;
       const sessionsPerWeek = rule.dayOfWeek.length;
       totalHoursPerWeek += hoursPerSession * sessionsPerWeek;
+      
+      console.log(`Rule ${rule.name}: ${hoursPerSession}h per session, ${sessionsPerWeek} days per week = ${hoursPerSession * sessionsPerWeek}h per week`);
     }
-
     return totalHoursPerWeek;
   }
 
-  /**
-   * Sorts projects by priority (1 = highest priority)
-   */
-  private sortProjectsByPriority(projects: Project[]): Project[] {
-    return [...projects].sort((a, b) => a.priority - b.priority);
-  }
-
-  /**
-   * Generates available time slots based on availability rules
-   */
-  private generateAvailableSlots(
-    rules: AvailabilityRule[],
-    daysAhead: number
-  ): TimeSlot[] {
+  private generateAvailableSlots(rules: AvailabilityRule[], daysAhead: number): TimeSlot[] {
     const slots: TimeSlot[] = [];
     const startDate = new Date();
+    
+    console.log(`Generating slots for ${daysAhead} days ahead starting from ${startDate.toISOString()}`);
 
     for (let i = 0; i < daysAhead; i++) {
-      const currentDate = addDays(startOfDay(startDate), i);
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      currentDate.setHours(0, 0, 0, 0);
+      
       const dayOfWeek = currentDate.getDay();
-
+      
       // Find applicable rules for this day
       const applicableRules = rules.filter(
         (rule) => rule.isActive && rule.dayOfWeek.includes(dayOfWeek)
       );
+
+      if (applicableRules.length > 0) {
+        console.log(`Day ${i} (${dayOfWeek}): Found ${applicableRules.length} applicable rules`);
+      }
 
       // Create slots for each applicable rule
       for (const rule of applicableRules) {
         const startTime = this.parseTime(rule.startTime);
         const endTime = this.parseTime(rule.endTime);
 
-        let slotStart = addMinutes(
-          addHours(currentDate, startTime.hours),
-          startTime.minutes
-        );
-        const slotEnd = addMinutes(addHours(currentDate, endTime.hours), endTime.minutes);
+        let slotStart = new Date(currentDate);
+        slotStart.setHours(startTime.hours, startTime.minutes, 0, 0);
+        
+        const slotEnd = new Date(currentDate);
+        slotEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
 
-        // Skip slots that are in the past
-        if (isBefore(slotEnd, new Date())) {
+        // Skip slots that are entirely in the past
+        if (slotEnd <= new Date()) {
+          console.log(`Skipping past slot: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
           continue;
         }
 
         // Adjust start time if it's in the past
-        if (isBefore(slotStart, new Date())) {
+        if (slotStart < new Date()) {
           slotStart = new Date();
           // Round up to next 15-minute interval for cleaner scheduling
           const minutes = slotStart.getMinutes();
           const roundedMinutes = Math.ceil(minutes / 15) * 15;
           slotStart.setMinutes(roundedMinutes, 0, 0);
+          console.log(`Adjusted past start time to: ${slotStart.toISOString()}`);
         }
 
         // Create slot if there's still time available
-        if (isBefore(slotStart, slotEnd)) {
+        if (slotStart < slotEnd) {
           const duration = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60 * 60);
 
           slots.push({
@@ -258,455 +229,75 @@ export class SchedulingEngine {
             duration: duration,
             isAvailable: true,
           });
+          
+          console.log(`Created slot: ${slotStart.toISOString()} - ${slotEnd.toISOString()}, duration: ${duration}h`);
         }
       }
     }
 
     // Sort slots by start time
-    return slots.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const sortedSlots = slots.sort((a, b) => a.start.getTime() - b.start.getTime());
+    console.log(`Total slots generated: ${sortedSlots.length}`);
+    
+    return sortedSlots;
   }
 
-  /**
-   * Parses time string (HH:MM) into hours and minutes
-   */
   private parseTime(timeString: string): { hours: number; minutes: number } {
     const [hours, minutes] = timeString.split(":").map(Number);
     return { hours, minutes };
   }
 
-  /**
-   * Gets a color for a project based on its ID
-   */
   private getProjectColor(projectId: string): string {
-    const colors = [
-      "#3B82F6",
-      "#10B981",
-      "#8B5CF6",
-      "#F59E0B",
-      "#EF4444",
-      "#06B6D4",
-      "#84CC16",
-      "#F97316",
-    ];
+    const colors = ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#06B6D4", "#84CC16", "#F97316"];
     const index = parseInt(projectId.slice(-1)) || 0;
     return colors[index % colors.length];
   }
 
-  /**
-   * Handles conflicts when external events overlap with scheduled sessions
-   */
-  resolveConflicts(
-    sessions: ScheduledSession[],
-    conflicts: { start: Date; end: Date }[]
-  ): ScheduledSession[] {
-    return sessions.map((session) => {
-      const hasConflict = conflicts.some(
-        (conflict) =>
-          isBefore(session.startTime, conflict.end) &&
-          isAfter(session.endTime, conflict.start)
-      );
-
-      if (hasConflict) {
-        return { ...session, status: "conflicted" as const };
-      }
-
-      return session;
+  private hasConflictWithExternalEvents(
+    sessionStart: Date,
+    sessionEnd: Date,
+    externalEvents: ExternalEvent[]
+  ): boolean {
+    if (!externalEvents || externalEvents.length === 0) return false;
+    
+    return externalEvents.some((event) => {
+      if (!event.start || !event.end) return false;
+      return sessionStart < event.end && event.start < sessionEnd;
     });
   }
 
-  /**
-   * Reschedules conflicted sessions to the next available slots
-   */
-  rescheduleConflictedSessions(
-    sessions: ScheduledSession[],
-    projects: Project[],
-    availabilityRules: AvailabilityRule[]
-  ): ScheduledSession[] {
-    const conflictedSessions = sessions.filter((s) => s.status === "conflicted");
-    const nonConflictedSessions = sessions.filter((s) => s.status !== "conflicted");
+  private blockExternalEvents(slots: TimeSlot[], externalEvents: ExternalEvent[]): void {
+    if (!externalEvents || externalEvents.length === 0) return;
 
-    if (conflictedSessions.length === 0) {
-      return sessions;
-    }
+    console.log(`Processing ${externalEvents.length} external events for slot blocking...`);
 
-    // Get available slots and exclude already scheduled time
-    const availableSlots = this.generateAvailableSlots(availabilityRules, 30); // Look further ahead
-
-    // Block out time slots that are already taken by non-conflicted sessions
-    for (const session of nonConflictedSessions) {
-      this.blockTimeSlot(availableSlots, session.startTime, session.endTime);
-    }
-
-    const rescheduledSessions: ScheduledSession[] = [...nonConflictedSessions];
-
-    // Reschedule conflicted sessions
-    for (const conflictedSession of conflictedSessions) {
-      const newSlot = this.findNextAvailableSlot(
-        availableSlots,
-        conflictedSession.duration
-      );
-
-      if (newSlot) {
-        const rescheduledSession: ScheduledSession = {
-          ...conflictedSession,
-          startTime: newSlot.start,
-          endTime: addHours(newSlot.start, conflictedSession.duration),
-          status: "scheduled",
-        };
-
-        rescheduledSessions.push(rescheduledSession);
-        this.blockTimeSlot(availableSlots, newSlot.start, rescheduledSession.endTime);
-      }
-    }
-
-    return rescheduledSessions.sort(
-      (a, b) => a.startTime.getTime() - b.startTime.getTime()
-    );
-  }
-
-  /**
-   * Blocks a time slot in the available slots array
-   */
-  private blockTimeSlot(slots: TimeSlot[], start: Date, end: Date): void {
-    for (const slot of slots) {
-      if (slot.isAvailable && isBefore(start, slot.end) && isAfter(end, slot.start)) {
-        slot.isAvailable = false;
-      }
-    }
-  }
-
-  /**
-   * Finds the next available slot that can accommodate the required duration
-   */
-  private findNextAvailableSlot(
-    slots: TimeSlot[],
-    requiredDuration: number
-  ): TimeSlot | null {
-    return (
-      slots.find((slot) => slot.isAvailable && slot.duration >= requiredDuration) || null
-    );
-  }
-
-  /**
-   * Improved method to block time slots that conflict with external events
-   * Only blocks slots when there are actual external events
-   */
-  private blockExternalEventsImproved(
-    slots: TimeSlot[],
-    externalEvents: { start: Date; end: Date }[]
-  ): void {
-    // Early return if no external events
-    if (!externalEvents || externalEvents.length === 0) {
-      console.log("No external events to block");
-      return;
-    }
-
-    console.log(
-      `Processing ${externalEvents.length} external events for slot blocking...`
-    );
-
+    let totalBlockedSlots = 0;
+    
     for (const event of externalEvents) {
-      // Validate event data
       if (!event.start || !event.end) {
         console.warn("Skipping invalid event:", event);
         continue;
       }
-
-      console.log(
-        `Blocking external event: ${event.start.toISOString()} - ${event.end.toISOString()}`
-      );
 
       let blockedCount = 0;
       for (const slot of slots) {
         if (!slot.isAvailable) continue;
 
         // Check if the slot overlaps with the external event
-        // Two time ranges overlap if: start1 < end2 AND start2 < end1
         const overlaps = slot.start < event.end && event.start < slot.end;
 
         if (overlaps) {
-          console.log(
-            `  Blocking slot: ${slot.start.toISOString()} - ${slot.end.toISOString()}`
-          );
           slot.isAvailable = false;
           blockedCount++;
+          totalBlockedSlots++;
         }
       }
-      console.log(`  Blocked ${blockedCount} slots for this event`);
+      
+      if (blockedCount > 0) {
+        console.log(`Blocked ${blockedCount} slots for event: ${event.start.toISOString()} - ${event.end.toISOString()}`);
+      }
     }
-  }
-
-  /**
-   * Legacy method - kept for compatibility
-   */
-  private blockExternalEvents(
-    slots: TimeSlot[],
-    externalEvents: { start: Date; end: Date }[]
-  ): void {
-    this.blockExternalEventsImproved(slots, externalEvents);
+    
+    console.log(`Total slots blocked by external events: ${totalBlockedSlots}`);
   }
 }
-
-/**
- * Fetches Google Calendar events directly from Google Calendar API using edge function
- */
-const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: Date }[]> => {
-  console.log("=== FETCHING GOOGLE CALENDAR EVENTS DIRECTLY ===");
-  
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      console.log("User not authenticated - no calendar events to fetch");
-      return [];
-    }
-
-    console.log("Fetching Google Calendar events via edge function...");
-
-    const { data, error } = await supabase.functions.invoke('fetch-google-calendar-events');
-
-    if (error) {
-      console.error("Error fetching Google Calendar events:", error);
-      return [];
-    }
-
-    if (!data?.events || !Array.isArray(data.events)) {
-      console.log("No events returned from Google Calendar API");
-      return [];
-    }
-
-    // Process events into the format expected by the scheduling engine
-    const processedEvents = data.events
-      .filter((event: any) => event.start && event.end)
-      .map((event: any) => ({
-        start: new Date(event.start),
-        end: new Date(event.end),
-      }));
-
-    console.log(`Successfully processed ${processedEvents.length} Google Calendar events`);
-
-    // Log events for debugging
-    processedEvents.forEach((event, index) => {
-      console.log(
-        `Calendar Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`
-      );
-    });
-
-    return processedEvents;
-
-  } catch (error) {
-    console.error("Error fetching Google Calendar events directly:", error);
-    return [];
-  }
-};
-
-/**
- * Main function to schedule projects - now with proper order of operations
- */
-export const scheduleProjects = async (
-  projects: Project[],
-  availabilityRules: AvailabilityRule[]
-): Promise<void> => {
-  console.log("=== SCHEDULE PROJECTS START ===");
-  console.log("Input projects:", projects.length);
-  console.log("Input availability rules:", availabilityRules.length);
-
-  const engine = new SchedulingEngine();
-
-  // STEP 1: Get existing scheduled sessions with Google Calendar events before deleting them
-  const { data: existingSessions } = await supabase
-    .from("scheduled_sessions")
-    .select("google_event_id, project_name")
-    .eq("status", "scheduled")
-    .not("google_event_id", "is", null);
-
-  // STEP 2: Delete existing calendar events FIRST
-  if (existingSessions && existingSessions.length > 0) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      // Check if user has an active calendar connection
-      const { data: connection } = await supabase
-        .from("calendar_connections")
-        .select("id")
-        .eq("user_id", user?.id)
-        .eq("provider", "google")
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (connection) {
-        // Delete existing calendar events
-        let successCount = 0;
-        let errorCount = 0;
-
-        toast.info(`Deleting ${existingSessions.length} existing calendar events...`);
-
-        for (const session of existingSessions) {
-          try {
-            await supabase.functions.invoke("delete-calendar-event", {
-              body: {
-                googleEventId: session.google_event_id,
-              },
-            });
-            successCount++;
-          } catch (error) {
-            console.error(`Failed to delete calendar event:`, error);
-            errorCount++;
-          }
-        }
-
-        // Show summary toast for deletions
-        if (successCount > 0 && errorCount === 0) {
-          toast.success(
-            `All ${successCount} existing calendar events deleted successfully!`
-          );
-        } else if (successCount > 0 && errorCount > 0) {
-          toast.warning(`${successCount} events deleted, ${errorCount} failed to delete`);
-        } else if (errorCount > 0) {
-          toast.error(`Failed to delete existing calendar events`);
-        }
-      }
-    } catch (calendarError) {
-      console.error("Error deleting existing calendar events:", calendarError);
-      toast.error("Failed to delete existing calendar events", {
-        description: calendarError.message || "Unknown error occurred",
-      });
-      // Continue with scheduling even if deletion fails
-    }
-  }
-
-  // STEP 3: Clear existing scheduled sessions from database
-  const { error: clearError } = await supabase
-    .from("scheduled_sessions")
-    .delete()
-    .eq("status", "scheduled");
-
-  if (clearError) {
-    console.error("Error clearing existing sessions:", clearError);
-    throw clearError;
-  }
-
-  // STEP 4: Fetch fresh Google Calendar events AFTER deleting existing ones
-  const googleCalendarEvents = await fetchGoogleCalendarEventsDirectly();
-
-  // STEP 5: Generate new schedule with fresh Google Calendar conflicts considered
-  console.log(
-    `Passing ${googleCalendarEvents.length} fresh external events to scheduling engine`
-  );
-  const newSessions = engine.generateSchedule(
-    projects,
-    availabilityRules,
-    googleCalendarEvents
-  );
-
-  console.log(
-    `Generated ${newSessions.length} sessions for ${projects.length} projects, successfully avoiding ${googleCalendarEvents.length} fresh Google Calendar conflicts`
-  );
-
-  // STEP 6: Save new sessions to database
-  if (newSessions.length > 0) {
-    const sessionsToInsert = newSessions.map((session) => ({
-      project_id: session.projectId,
-      project_name: session.projectName,
-      start_time: session.startTime.toISOString(),
-      end_time: session.endTime.toISOString(),
-      duration: session.duration,
-      status: session.status,
-      priority: session.priority,
-      color: session.color,
-    }));
-
-    const { data: insertedSessions, error } = await supabase
-      .from("scheduled_sessions")
-      .insert(sessionsToInsert)
-      .select();
-
-    if (error) {
-      console.error("Error saving scheduled sessions:", error);
-      throw error;
-    }
-
-    console.log(`Successfully saved ${sessionsToInsert.length} sessions to database`);
-
-    // STEP 7: Create NEW calendar events for the new sessions
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      // Check if user has an active calendar connection
-      const { data: connection } = await supabase
-        .from("calendar_connections")
-        .select("id")
-        .eq("user_id", user?.id)
-        .eq("provider", "google")
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (connection && insertedSessions) {
-        // Show initial toast for calendar event creation process
-        toast.info(`Creating ${insertedSessions.length} Google Calendar events...`);
-
-        let successCount = 0;
-        let errorCount = 0;
-
-        // Create calendar events for each session with individual notifications
-        for (const session of insertedSessions) {
-          try {
-            await supabase.functions.invoke("create-calendar-event", {
-              body: {
-                sessionId: session.id,
-                title: `Work Session: ${session.project_name}`,
-                startTime: session.start_time,
-                endTime: session.end_time,
-                description: `Scheduled work session for ${session.project_name} (${session.duration} hours)`,
-              },
-            });
-
-            // Show success toast for individual event
-            toast.success(`Calendar event created for ${session.project_name}`, {
-              description: `${new Date(session.start_time).toLocaleString()} - ${new Date(
-                session.end_time
-              ).toLocaleString()}`,
-            });
-
-            successCount++;
-          } catch (eventError) {
-            console.error(
-              `Failed to create calendar event for session ${session.id}:`,
-              eventError
-            );
-
-            // Show error toast for individual event
-            toast.error(`Failed to create calendar event for ${session.project_name}`, {
-              description: eventError.message || "Unknown error occurred",
-            });
-
-            errorCount++;
-          }
-        }
-
-        // Show final summary toast
-        if (successCount > 0 && errorCount === 0) {
-          toast.success(`All ${successCount} calendar events created successfully!`);
-        } else if (successCount > 0 && errorCount > 0) {
-          toast.warning(`${successCount} events created, ${errorCount} failed`);
-        } else if (errorCount > 0) {
-          toast.error(`Failed to create all ${errorCount} calendar events`);
-        }
-
-        console.log("Calendar events creation completed");
-      }
-    } catch (calendarError) {
-      console.error("Error creating calendar events:", calendarError);
-      toast.error("Failed to create calendar events", {
-        description: calendarError.message || "Unknown error occurred",
-      });
-      // Don't throw here - sessions are created successfully, calendar events are optional
-    }
-  }
-
-  console.log("=== SCHEDULE PROJECTS END ===");
-};

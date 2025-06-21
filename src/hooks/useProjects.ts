@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Project } from '@/types';
@@ -10,7 +11,7 @@ export const useProjects = () => {
   // Fetch projects from database
   const fetchProjects = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('projects')
         .select('*')
         .order('priority', { ascending: true });
@@ -62,7 +63,7 @@ export const useProjects = () => {
           description: projectData.description,
           priority: maxPriority + 1,
           status: 'pending',
-          user_id: user.id // Add the user ID
+          user_id: user.id
         })
         .select()
         .single();
@@ -90,10 +91,9 @@ export const useProjects = () => {
     }
   };
 
-  // Update project - Enhanced to return whether estimated hours changed
+  // Update project
   const updateProject = async (updatedProject: Project) => {
     try {
-      // Get the current project to check if estimated hours changed
       const currentProject = projects.find(p => p.id === updatedProject.id);
       const estimatedHoursChanged = currentProject && currentProject.estimatedHours !== updatedProject.estimatedHours;
 
@@ -118,8 +118,6 @@ export const useProjects = () => {
       );
       
       toast.success('Project updated successfully');
-      
-      // Return whether estimated hours changed to trigger recalculation
       return { estimatedHoursChanged };
     } catch (error) {
       console.error('Error updating project:', error);
@@ -131,7 +129,6 @@ export const useProjects = () => {
   // Update project priorities after drag and drop
   const updateProjectPriorities = async (reorderedProjects: Project[]) => {
     try {
-      // Update each project's priority individually
       const updatePromises = reorderedProjects.map((project, index) => 
         supabase
           .from('projects')
@@ -144,13 +141,11 @@ export const useProjects = () => {
 
       const results = await Promise.all(updatePromises);
       
-      // Check if any updates failed
       const failedUpdates = results.filter(result => result.error);
       if (failedUpdates.length > 0) {
         throw new Error('Some priority updates failed');
       }
 
-      // Update local state
       const updatedProjects = reorderedProjects.map((project, index) => ({
         ...project,
         priority: index + 1
@@ -164,105 +159,25 @@ export const useProjects = () => {
     }
   };
 
-  // Delete project - Enhanced to clear ALL scheduled sessions before deletion and trigger full recalculation
+  // Delete project with cleanup
   const deleteProject = async (projectId: string, onSessionsDeleted?: () => void) => {
     try {
       console.log(`Starting deletion of project ${projectId}`);
       
-      // First, delete ALL existing Google Calendar events for scheduled sessions
-      const { data: allScheduledSessions, error: fetchError } = await supabase
-        .from('scheduled_sessions')
-        .select('id, google_event_id, project_name')
-        .eq('status', 'scheduled')
-        .not('google_event_id', 'is', null);
-        
-      if (fetchError) {
-        console.error('Error fetching scheduled sessions:', fetchError);
-        throw fetchError;
-      }
+      // Clean up existing sessions and calendar events first
+      await cleanupProjectSessions();
       
-      if (allScheduledSessions && allScheduledSessions.length > 0) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          // Check if user has an active calendar connection
-          const { data: connection } = await supabase
-            .from('calendar_connections')
-            .select('id')
-            .eq('user_id', user?.id)
-            .eq('provider', 'google')
-            .eq('is_active', true)
-            .maybeSingle();
-          
-          if (connection) {
-            // Delete all existing calendar events
-            let successCount = 0;
-            let errorCount = 0;
-
-            toast.info(`Deleting ${allScheduledSessions.length} existing calendar events...`);
-
-            for (const session of allScheduledSessions) {
-              try {
-                await supabase.functions.invoke('delete-calendar-event', {
-                  body: {
-                    googleEventId: session.google_event_id
-                  }
-                });
-                successCount++;
-              } catch (error) {
-                console.error(`Failed to delete calendar event:`, error);
-                errorCount++;
-              }
-            }
-
-            // Show summary toast for deletions
-            if (successCount > 0 && errorCount === 0) {
-              toast.success(`All ${successCount} existing calendar events deleted successfully!`);
-            } else if (successCount > 0 && errorCount > 0) {
-              toast.warning(`${successCount} events deleted, ${errorCount} failed to delete`);
-            } else if (errorCount > 0) {
-              toast.error(`Failed to delete existing calendar events`);
-            }
-          }
-        } catch (calendarError) {
-          console.error('Error deleting existing calendar events:', calendarError);
-          toast.error('Failed to delete existing calendar events', {
-            description: calendarError.message || 'Unknown error occurred'
-          });
-          // Continue with project deletion even if calendar deletion fails
-        }
-      }
-      
-      // Then, delete ALL scheduled sessions (not just for this project)
-      const { error: allSessionsError } = await supabase
-        .from('scheduled_sessions')
-        .delete()
-        .eq('status', 'scheduled');
-
-      if (allSessionsError) {
-        console.error('Error deleting all scheduled sessions:', allSessionsError);
-        throw allSessionsError;
-      }
-      
-      console.log(`Successfully deleted all scheduled sessions`);
-
-      // Finally, delete the project
+      // Delete the project
       const { error: projectError } = await supabase
         .from('projects')
         .delete()
         .eq('id', projectId);
 
-      if (projectError) {
-        console.error('Error deleting project:', projectError);
-        throw projectError;
-      }
-      
-      console.log(`Successfully deleted project ${projectId}`);
+      if (projectError) throw projectError;
 
       setProjects(prev => prev.filter(project => project.id !== projectId));
       toast.success('Project deleted and all sessions cleared for recalculation');
       
-      // Call the callback to refresh sessions in the UI
       if (onSessionsDeleted) {
         onSessionsDeleted();
       }
@@ -270,6 +185,52 @@ export const useProjects = () => {
       console.error('Error deleting project:', error);
       toast.error('Failed to delete project');
       throw error;
+    }
+  };
+
+  // Helper function to clean up sessions
+  const cleanupProjectSessions = async () => {
+    try {
+      const { data: allScheduledSessions } = await supabase
+        .from('scheduled_sessions')
+        .select('id, google_event_id, project_name')
+        .eq('status', 'scheduled')
+        .not('google_event_id', 'is', null);
+        
+      if (allScheduledSessions && allScheduledSessions.length > 0) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: connection } = await supabase
+          .from('calendar_connections')
+          .select('id')
+          .eq('user_id', user?.id)
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (connection) {
+          toast.info(`Deleting ${allScheduledSessions.length} existing calendar events...`);
+          
+          for (const session of allScheduledSessions) {
+            try {
+              await supabase.functions.invoke('delete-calendar-event', {
+                body: { googleEventId: session.google_event_id }
+              });
+            } catch (error) {
+              console.error(`Failed to delete calendar event:`, error);
+            }
+          }
+        }
+      }
+      
+      // Delete all scheduled sessions
+      await supabase
+        .from('scheduled_sessions')
+        .delete()
+        .eq('status', 'scheduled');
+        
+    } catch (error) {
+      console.error('Error cleaning up sessions:', error);
+      // Continue with project deletion even if cleanup fails
     }
   };
 

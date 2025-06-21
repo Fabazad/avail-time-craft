@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -21,6 +22,7 @@ const IndexContent = () => {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
+  // Custom hooks for data management
   const { 
     projects, 
     loading: projectsLoading, 
@@ -45,11 +47,10 @@ const IndexContent = () => {
 
   const { recalculateSchedule, isRecalculating } = useScheduleRecalculation();
 
-  // Trigger automatic scheduling when projects or availability rules change
+  // Auto-recalculate schedule when data changes
   useEffect(() => {
     if (projects.length === 0 || availabilityRules.length === 0) return;
     
-    // Debounce the recalculation to avoid multiple calls
     const timeoutId = setTimeout(async () => {
       try {
         await recalculateSchedule();
@@ -67,6 +68,7 @@ const IndexContent = () => {
     JSON.stringify(availabilityRules.map(r => ({ id: r.id, isActive: r.isActive })))
   ]);
 
+  // Event handlers
   const handleCreateProject = async (projectData: {
     name: string;
     estimatedHours: number;
@@ -84,7 +86,6 @@ const IndexContent = () => {
     try {
       const result = await updateProject(updatedProject);
       
-      // If estimated hours changed, recalculate the schedule immediately
       if (result?.estimatedHoursChanged) {
         console.log('Estimated hours changed, recalculating schedule...');
         await recalculateSchedule();
