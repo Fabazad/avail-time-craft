@@ -48,6 +48,16 @@ export const GoogleCalendarIntegration = () => {
   const connectGoogleCalendar = async () => {
     setConnecting(true);
     try {
+      // Use a hardcoded client ID for now - this should be configured via environment variables
+      // For production, you'll need to set up proper environment variables
+      const googleClientId = "YOUR_GOOGLE_CLIENT_ID_HERE";
+      
+      if (!googleClientId || googleClientId === "YOUR_GOOGLE_CLIENT_ID_HERE") {
+        toast.error("Google Client ID not configured. Please check your environment variables.");
+        setConnecting(false);
+        return;
+      }
+
       // Generate OAuth URL
       const redirectUri = `${window.location.origin}`;
       const scope = "https://www.googleapis.com/auth/calendar.readonly";
@@ -58,13 +68,15 @@ export const GoogleCalendarIntegration = () => {
 
       const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${encodeURIComponent(process.env.GOOGLE_CLIENT_ID || '')}&` +
+        `client_id=${encodeURIComponent(googleClientId)}&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `response_type=code&` +
         `scope=${encodeURIComponent(scope)}&` +
         `access_type=offline&` +
         `prompt=consent&` +
         `state=${encodeURIComponent(state)}`;
+
+      console.log('Opening OAuth URL:', authUrl);
 
       // Open OAuth popup
       const popup = window.open(
@@ -128,12 +140,19 @@ export const GoogleCalendarIntegration = () => {
           window.history.replaceState({}, document.title, window.location.pathname);
           sessionStorage.removeItem('oauth_state');
 
+          console.log('Processing OAuth callback with code:', code);
+
           // Call the edge function to exchange code for tokens
           const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
             body: { code, state }
           });
 
-          if (error) throw error;
+          if (error) {
+            console.error('Edge function error:', error);
+            throw error;
+          }
+
+          console.log('Edge function response:', data);
 
           if (window.opener) {
             // We're in a popup, send success message to parent
