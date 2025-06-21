@@ -149,8 +149,8 @@ export const useProjects = () => {
     }
   };
 
-  // Delete project - Enhanced with better error handling and logging
-  const deleteProject = async (projectId: string) => {
+  // Delete project - Enhanced with better error handling and session refresh callback
+  const deleteProject = async (projectId: string, onSessionsDeleted?: () => void) => {
     try {
       console.log(`Starting deletion of project ${projectId}`);
       
@@ -180,6 +180,11 @@ export const useProjects = () => {
         }
         
         console.log(`Successfully deleted ${existingSessions.length} sessions`);
+        
+        // Call the callback to refresh sessions in the UI
+        if (onSessionsDeleted) {
+          onSessionsDeleted();
+        }
       }
 
       // Then delete the project

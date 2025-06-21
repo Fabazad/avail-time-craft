@@ -98,7 +98,7 @@ const IndexContent = () => {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    await deleteProject(projectId);
+    await deleteProject(projectId, refetchScheduledSessions);
   };
 
   const handleReorderProjects = async (reorderedProjects: any[]) => {
