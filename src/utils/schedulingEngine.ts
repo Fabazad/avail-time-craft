@@ -280,7 +280,7 @@ export class SchedulingEngine {
 
 /**
  * Main function to schedule projects - clears existing scheduled sessions and creates new ones
- * Now includes Google Calendar conflict detection
+ * Now includes Google Calendar conflict detection and event creation
  */
 export const scheduleProjects = async (
   projects: Project[], 
@@ -318,9 +318,10 @@ export const scheduleProjects = async (
       color: session.color
     }));
     
-    const { error } = await supabase
+    const { data: insertedSessions, error } = await supabase
       .from('scheduled_sessions')
-      .insert(sessionsToInsert);
+      .insert(sessionsToInsert)
+      .select();
       
     if (error) {
       console.error('Error saving scheduled sessions:', error);
@@ -328,5 +329,43 @@ export const scheduleProjects = async (
     }
     
     console.log(`Successfully saved ${sessionsToInsert.length} sessions to database`);
+    
+    // Create calendar events for the new sessions
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Check if user has an active calendar connection
+      const { data: connection } = await supabase
+        .from('calendar_connections')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('provider', 'google')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (connection && insertedSessions) {
+        // Create calendar events for each session
+        for (const session of insertedSessions) {
+          try {
+            await supabase.functions.invoke('create-calendar-event', {
+              body: {
+                sessionId: session.id,
+                title: `Work Session: ${session.project_name}`,
+                startTime: session.start_time,
+                endTime: session.end_time,
+                description: `Scheduled work session for ${session.project_name} (${session.duration} hours)`
+              }
+            });
+          } catch (eventError) {
+            console.error(`Failed to create calendar event for session ${session.id}:`, eventError);
+            // Continue with other sessions even if one fails
+          }
+        }
+        console.log('Calendar events creation initiated for all sessions');
+      }
+    } catch (calendarError) {
+      console.error('Error creating calendar events:', calendarError);
+      // Don't throw here - sessions are created successfully, calendar events are optional
+    }
   }
 };

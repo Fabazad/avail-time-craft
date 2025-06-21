@@ -32,6 +32,7 @@ export interface ScheduledSession {
   status: 'scheduled' | 'completed' | 'conflicted';
   priority: number;
   color?: string;
+  googleEventId?: string; // Google Calendar event ID
 }
 
 export interface CalendarEvent {
