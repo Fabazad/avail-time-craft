@@ -1,9 +1,8 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Project, ScheduledSession } from '@/types';
+import { Project, ScheduledSession, AvailabilityRule } from '@/types';
 import { Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { format, isToday, isTomorrow, addDays } from 'date-fns';
 import { updateProjectWithDates } from '@/utils/projectUtils';
@@ -11,14 +10,16 @@ import { updateProjectWithDates } from '@/utils/projectUtils';
 interface DashboardProps {
   projects: Project[];
   scheduledSessions: ScheduledSession[];
-  onCompleteSession: (sessionId: string) => void;
-  onUpdateProject: (project: Project) => void;
-  onDeleteProject: (projectId: string) => void;
+  availabilityRules: AvailabilityRule[];
+  onCompleteSession?: (sessionId: string) => void;
+  onUpdateProject?: (project: Project) => void;
+  onDeleteProject?: (projectId: string) => void;
 }
 
 export const Dashboard = ({ 
   projects, 
   scheduledSessions, 
+  availabilityRules,
   onCompleteSession,
   onUpdateProject,
   onDeleteProject 
@@ -155,13 +156,15 @@ export const Dashboard = ({
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => onUpdateProject({...project, status: 'completed'})}
-                      >
-                        Complete
-                      </Button>
+                      {onUpdateProject && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => onUpdateProject({...project, status: 'completed'})}
+                        >
+                          Complete
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3">
@@ -201,14 +204,16 @@ export const Dashboard = ({
                       {formatSessionTime(session)} • {session.duration}h
                     </p>
                   </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => onCompleteSession(session.id)}
-                    className="text-xs px-2 py-1"
-                  >
-                    Done
-                  </Button>
+                  {onCompleteSession && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => onCompleteSession(session.id)}
+                      className="text-xs px-2 py-1"
+                    >
+                      Done
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -238,14 +243,16 @@ export const Dashboard = ({
                   <p className="text-xs text-indigo-200 mt-1">
                     {session.duration} hour{session.duration !== 1 ? 's' : ''}
                   </p>
-                  <Button 
-                    size="sm" 
-                    variant="secondary"
-                    onClick={() => onCompleteSession(session.id)}
-                    className="mt-2 bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  >
-                    Mark Complete
-                  </Button>
+                  {onCompleteSession && (
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={() => onCompleteSession(session.id)}
+                      className="mt-2 bg-white/20 hover:bg-white/30 text-white border-white/30"
+                    >
+                      Mark Complete
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
