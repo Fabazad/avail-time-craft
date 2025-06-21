@@ -448,7 +448,7 @@ export class SchedulingEngine {
 }
 
 /**
- * Fetches Google Calendar events directly from Google Calendar API
+ * Fetches Google Calendar events directly from Google Calendar API using edge function
  */
 const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: Date }[]> => {
   console.log("=== FETCHING GOOGLE CALENDAR EVENTS DIRECTLY ===");
@@ -461,26 +461,38 @@ const fetchGoogleCalendarEventsDirectly = async (): Promise<{ start: Date; end: 
       return [];
     }
 
-    // Check if user has an active calendar connection
-    const { data: connection } = await supabase
-      .from("calendar_connections")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("provider", "google")
-      .eq("is_active", true)
-      .maybeSingle();
+    console.log("Fetching Google Calendar events via edge function...");
 
-    if (!connection) {
-      console.log("No active Google Calendar connection found");
+    const { data, error } = await supabase.functions.invoke('fetch-google-calendar-events');
+
+    if (error) {
+      console.error("Error fetching Google Calendar events:", error);
       return [];
     }
 
-    console.log("Active Google Calendar connection found, fetching events directly from API...");
+    if (!data?.events || !Array.isArray(data.events)) {
+      console.log("No events returned from Google Calendar API");
+      return [];
+    }
 
-    // Since we no longer store events in the database, we need to fetch them directly
-    // from Google Calendar API. For now, return empty array until we implement direct API calls
-    console.log("Direct Google Calendar API fetching not yet implemented - returning empty array");
-    return [];
+    // Process events into the format expected by the scheduling engine
+    const processedEvents = data.events
+      .filter((event: any) => event.start && event.end)
+      .map((event: any) => ({
+        start: new Date(event.start),
+        end: new Date(event.end),
+      }));
+
+    console.log(`Successfully processed ${processedEvents.length} Google Calendar events`);
+
+    // Log events for debugging
+    processedEvents.forEach((event, index) => {
+      console.log(
+        `Calendar Event ${index + 1}: ${event.start.toISOString()} - ${event.end.toISOString()}`
+      );
+    });
+
+    return processedEvents;
 
   } catch (error) {
     console.error("Error fetching Google Calendar events directly:", error);
