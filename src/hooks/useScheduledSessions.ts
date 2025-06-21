@@ -8,9 +8,17 @@ export const useScheduledSessions = () => {
   const [scheduledSessions, setScheduledSessions] = useState<ScheduledSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch scheduled sessions from database
+  // Fetch scheduled sessions from database (RLS ensures user isolation)
   const fetchScheduledSessions = async () => {
     try {
+      // Verify user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setScheduledSessions([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('scheduled_sessions')
         .select('*')
@@ -18,7 +26,7 @@ export const useScheduledSessions = () => {
 
       if (error) throw error;
 
-      const formattedSessions: ScheduledSession[] = data.map(session => ({
+      const formattedSessions: ScheduledSession[] = (data || []).map(session => ({
         id: session.id,
         projectId: session.project_id,
         projectName: session.project_name,
@@ -34,6 +42,7 @@ export const useScheduledSessions = () => {
     } catch (error) {
       console.error('Error fetching scheduled sessions:', error);
       toast.error('Failed to load scheduled sessions');
+      setScheduledSessions([]);
     } finally {
       setLoading(false);
     }
@@ -42,6 +51,11 @@ export const useScheduledSessions = () => {
   // Complete a session
   const completeSession = async (sessionId: string) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { error } = await supabase
         .from('scheduled_sessions')
         .update({ status: 'completed' })
@@ -68,10 +82,15 @@ export const useScheduledSessions = () => {
   // Clear all scheduled sessions (used before recalculating)
   const clearScheduledSessions = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { error } = await supabase
         .from('scheduled_sessions')
         .delete()
-        .eq('status', 'scheduled'); // Only delete scheduled sessions, keep completed ones
+        .eq('status', 'scheduled'); // RLS will ensure only user's sessions are deleted
 
       if (error) throw error;
     } catch (error) {

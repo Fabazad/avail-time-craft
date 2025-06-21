@@ -8,10 +8,20 @@ export const useAvailability = () => {
   const [availabilityRules, setAvailabilityRules] = useState<AvailabilityRule[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch availability rules from database
+  // Fetch availability rules from database (RLS ensures user isolation)
   const fetchAvailabilityRules = async () => {
     try {
       console.log('Fetching availability rules from database...');
+      
+      // Verify user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No authenticated user, clearing availability rules');
+        setAvailabilityRules([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('availability_rules')
         .select('*')
@@ -24,7 +34,7 @@ export const useAvailability = () => {
 
       console.log('Raw availability rules from database:', data);
 
-      const formattedRules: AvailabilityRule[] = data.map(rule => ({
+      const formattedRules: AvailabilityRule[] = (data || []).map(rule => ({
         id: rule.id,
         name: rule.name,
         dayOfWeek: rule.day_of_week,
@@ -40,6 +50,7 @@ export const useAvailability = () => {
     } catch (error) {
       console.error('Error fetching availability rules:', error);
       toast.error('Failed to load availability rules');
+      setAvailabilityRules([]);
     } finally {
       setLoading(false);
     }
@@ -56,11 +67,11 @@ export const useAvailability = () => {
         throw new Error('User not authenticated');
       }
 
-      // Delete existing rules for this user
+      // Delete existing rules for this user (RLS ensures only user's rules are deleted)
       const { error: deleteError } = await supabase
         .from('availability_rules')
         .delete()
-        .eq('user_id', user.id);
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all user's rules
 
       if (deleteError) {
         console.error('Error deleting existing rules:', deleteError);
@@ -77,7 +88,7 @@ export const useAvailability = () => {
           end_time: rule.endTime,
           is_active: rule.isActive,
           duration: rule.duration,
-          user_id: user.id
+          user_id: user.id // Explicitly set user_id for RLS
         }));
 
         const { error: insertError } = await supabase

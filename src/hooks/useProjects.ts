@@ -8,9 +8,17 @@ export const useProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch projects from database
+  // Fetch projects from database (RLS ensures user isolation)
   const fetchProjects = async () => {
     try {
+      // Verify user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -18,7 +26,7 @@ export const useProjects = () => {
 
       if (error) throw error;
 
-      const formattedProjects: Project[] = data.map(project => ({
+      const formattedProjects: Project[] = (data || []).map(project => ({
         id: project.id,
         name: project.name,
         estimatedHours: project.estimated_hours,
@@ -33,6 +41,7 @@ export const useProjects = () => {
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast.error('Failed to load projects');
+      setProjects([]);
     } finally {
       setLoading(false);
     }
@@ -63,7 +72,7 @@ export const useProjects = () => {
           description: projectData.description,
           priority: maxPriority + 1,
           status: 'pending',
-          user_id: user.id
+          user_id: user.id // Explicitly set user_id for RLS
         })
         .select()
         .single();
