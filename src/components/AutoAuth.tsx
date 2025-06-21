@@ -23,8 +23,8 @@ export const AutoAuth = ({ children }: AutoAuthProps) => {
           return;
         }
 
-        // Auto-create and sign in a test user
-        const testEmail = 'test@example.com';
+        // Auto-create and sign in a test user with a valid email format
+        const testEmail = 'testuser@gmail.com';
         const testPassword = 'testpassword123';
 
         console.log('Attempting to sign in test user...');
