@@ -21,7 +21,6 @@ interface CalendarConnection {
 export const GoogleCalendarIntegration = () => {
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
 
   // Fetch existing connection
@@ -150,26 +149,6 @@ export const GoogleCalendarIntegration = () => {
     handleOAuthCallback();
   }, []);
 
-  // Sync calendar events
-  const syncCalendar = async () => {
-    if (!connection) return;
-
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-google-calendar");
-
-      if (error) throw error;
-
-      toast.success(data.message || "Calendar synced successfully");
-      await fetchConnection(); // Refresh connection data
-    } catch (error) {
-      console.error("Error syncing calendar:", error);
-      toast.error("Failed to sync calendar");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const disconnectCalendar = async () => {
     if (!connection) return;
 
@@ -215,8 +194,8 @@ export const GoogleCalendarIntegration = () => {
         {!connection ? (
           <div className="text-center space-y-4">
             <p className="text-gray-600">
-              Connect your Google Calendar to sync your scheduled work sessions
-              and avoid scheduling conflicts with existing events.
+              Connect your Google Calendar to avoid scheduling conflicts with existing events
+              and automatically create calendar events for your work sessions.
             </p>
             <Button
               onClick={connectGoogleCalendar}
@@ -259,30 +238,7 @@ export const GoogleCalendarIntegration = () => {
 
             <div className="text-sm text-gray-600 space-y-1">
               <div>Calendar ID: {connection.calendar_id}</div>
-              {connection.last_sync_at && (
-                <div>Last synced: {format(new Date(connection.last_sync_at), "PPp")}</div>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={syncCalendar}
-                disabled={syncing}
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {syncing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Sync Now
-                  </>
-                )}
-              </Button>
+              <div>Connected: {format(new Date(connection.created_at), "PPp")}</div>
             </div>
 
             <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">

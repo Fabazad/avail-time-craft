@@ -90,42 +90,6 @@ export type Database = {
         }
         Relationships: []
       }
-      google_calendar_events: {
-        Row: {
-          calendar_id: string
-          created_at: string
-          end_time: string
-          event_id: string
-          id: string
-          start_time: string
-          summary: string | null
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          calendar_id: string
-          created_at?: string
-          end_time: string
-          event_id: string
-          id?: string
-          start_time: string
-          summary?: string | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          calendar_id?: string
-          created_at?: string
-          end_time?: string
-          event_id?: string
-          id?: string
-          start_time?: string
-          summary?: string | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       projects: {
         Row: {
           created_at: string
