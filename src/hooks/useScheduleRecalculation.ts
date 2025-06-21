@@ -10,12 +10,28 @@ export const useScheduleRecalculation = () => {
     setIsRecalculating(true);
     
     try {
+      // Verify user is authenticated first
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('User not authenticated');
+      }
+
       // Show initial toast
       toast.info('Recalculating schedule...', {
         description: 'This may take a few moments'
       });
 
-      const { data, error } = await supabase.functions.invoke('recalculate-schedule');
+      // Get the current session to ensure we have a valid token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session found');
+      }
+
+      const { data, error } = await supabase.functions.invoke('recalculate-schedule', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
       if (error) throw error;
 
