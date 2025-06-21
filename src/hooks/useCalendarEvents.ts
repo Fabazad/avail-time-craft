@@ -39,6 +39,65 @@ export const useCalendarEvents = () => {
     }
   };
 
+  const deleteCalendarEvent = async (googleEventId: string, projectName?: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-calendar-event', {
+        body: {
+          googleEventId
+        }
+      });
+
+      if (error) throw error;
+
+      // Show success toast for individual event deletion
+      if (projectName) {
+        toast.success(`Calendar event deleted for ${projectName}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error deleting calendar event:', error);
+      // Show error toast for individual event deletion
+      if (projectName) {
+        toast.error(`Failed to delete calendar event for ${projectName}`, {
+          description: error.message || 'Unknown error occurred'
+        });
+      }
+      throw error;
+    }
+  };
+
+  const deleteEventsForSessions = async (sessions: { google_event_id?: string; project_name: string }[]) => {
+    const sessionsWithEvents = sessions.filter(session => session.google_event_id);
+    
+    if (sessionsWithEvents.length === 0) return;
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Show initial toast indicating start of deletion process
+    toast.info(`Deleting ${sessionsWithEvents.length} existing calendar events...`);
+
+    for (const session of sessionsWithEvents) {
+      try {
+        await deleteCalendarEvent(session.google_event_id!, session.project_name);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete event for session:`, error);
+        errorCount++;
+      }
+    }
+
+    // Show final summary toast for deletions
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`All ${successCount} existing calendar events deleted successfully!`);
+    } else if (successCount > 0 && errorCount > 0) {
+      toast.warning(`${successCount} events deleted, ${errorCount} failed to delete`);
+    } else if (errorCount > 0) {
+      toast.error(`Failed to delete all ${errorCount} calendar events`);
+    }
+  };
+
   const createEventsForSessions = async (sessions: any[]) => {
     const results = [];
     let successCount = 0;
@@ -75,6 +134,8 @@ export const useCalendarEvents = () => {
 
   return {
     createCalendarEvent,
+    deleteCalendarEvent,
+    deleteEventsForSessions,
     createEventsForSessions
   };
 };

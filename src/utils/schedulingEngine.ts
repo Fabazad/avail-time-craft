@@ -282,6 +282,7 @@ export class SchedulingEngine {
 /**
  * Main function to schedule projects - clears existing scheduled sessions and creates new ones
  * Now includes Google Calendar conflict detection and event creation with toast notifications
+ * Also deletes existing calendar events before creating new ones
  */
 export const scheduleProjects = async (
   projects: Project[], 
@@ -289,6 +290,66 @@ export const scheduleProjects = async (
   googleCalendarEvents: { start: Date; end: Date }[] = []
 ): Promise<void> => {
   const engine = new SchedulingEngine();
+  
+  // Get existing scheduled sessions with Google Calendar events before deleting them
+  const { data: existingSessions } = await supabase
+    .from('scheduled_sessions')
+    .select('google_event_id, project_name')
+    .eq('status', 'scheduled')
+    .not('google_event_id', 'is', null);
+
+  // Delete existing calendar events first
+  if (existingSessions && existingSessions.length > 0) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Check if user has an active calendar connection
+      const { data: connection } = await supabase
+        .from('calendar_connections')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('provider', 'google')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (connection) {
+        // Delete existing calendar events
+        let successCount = 0;
+        let errorCount = 0;
+
+        toast.info(`Deleting ${existingSessions.length} existing calendar events...`);
+
+        for (const session of existingSessions) {
+          try {
+            await supabase.functions.invoke('delete-calendar-event', {
+              body: {
+                googleEventId: session.google_event_id
+              }
+            });
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to delete calendar event:`, error);
+            errorCount++;
+          }
+        }
+
+        // Show summary toast for deletions
+        if (successCount > 0 && errorCount === 0) {
+          toast.success(`All ${successCount} existing calendar events deleted successfully!`);
+        } else if (successCount > 0 && errorCount > 0) {
+          toast.warning(`${successCount} events deleted, ${errorCount} failed to delete`);
+        } else if (errorCount > 0) {
+          toast.error(`Failed to delete existing calendar events`);
+        }
+      }
+    } catch (calendarError) {
+      console.error('Error deleting existing calendar events:', calendarError);
+      toast.error('Failed to delete existing calendar events', {
+        description: calendarError.message || 'Unknown error occurred'
+      });
+      // Continue with scheduling even if deletion fails
+    }
+  }
   
   // Clear existing scheduled sessions (keep completed ones)
   const { error: clearError } = await supabase
