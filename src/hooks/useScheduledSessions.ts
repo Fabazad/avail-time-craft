@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ScheduledSession } from '@/types';
@@ -7,7 +8,7 @@ export const useScheduledSessions = () => {
   const [scheduledSessions, setScheduledSessions] = useState<ScheduledSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch scheduled sessions from database (RLS ensures user isolation)
+  // Fetch scheduled sessions from database with explicit user_id filter
   const fetchScheduledSessions = async () => {
     try {
       // Verify user is authenticated
@@ -29,10 +30,11 @@ export const useScheduledSessions = () => {
 
       console.log('Fetching scheduled sessions for user:', user.id);
 
-      // Fetch scheduled sessions (RLS will automatically filter by user_id)
+      // Fetch scheduled sessions with explicit user_id filter
       const { data, error } = await supabase
         .from('scheduled_sessions')
         .select('*')
+        .eq('user_id', user.id) // Explicit filter by user_id
         .order('start_time', { ascending: true });
 
       if (error) {
@@ -75,7 +77,8 @@ export const useScheduledSessions = () => {
       const { error } = await supabase
         .from('scheduled_sessions')
         .update({ status: 'completed' })
-        .eq('id', sessionId);
+        .eq('id', sessionId)
+        .eq('user_id', user.id); // Explicit filter by user_id
 
       if (error) throw error;
 
@@ -108,7 +111,8 @@ export const useScheduledSessions = () => {
       const { error } = await supabase
         .from('scheduled_sessions')
         .delete()
-        .eq('status', 'scheduled'); // RLS will ensure only user's sessions are deleted
+        .eq('status', 'scheduled')
+        .eq('user_id', user.id); // Explicit filter by user_id
 
       if (error) throw error;
     } catch (error) {

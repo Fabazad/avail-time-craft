@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AvailabilityRule } from '@/types';
@@ -7,7 +8,7 @@ export const useAvailability = () => {
   const [availabilityRules, setAvailabilityRules] = useState<AvailabilityRule[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch availability rules from database (RLS ensures user isolation)
+  // Fetch availability rules from database with explicit user_id filter
   const fetchAvailabilityRules = async () => {
     try {
       // Verify user is authenticated
@@ -29,10 +30,11 @@ export const useAvailability = () => {
 
       console.log('Fetching availability rules for user:', user.id);
 
-      // Fetch availability rules (RLS will automatically filter by user_id)
+      // Fetch availability rules with explicit user_id filter
       const { data, error } = await supabase
         .from('availability_rules')
         .select('*')
+        .eq('user_id', user.id) // Explicit filter by user_id
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -77,11 +79,11 @@ export const useAvailability = () => {
 
       console.log('Updating availability rules for user:', user.id);
 
-      // Delete existing rules for this user (RLS ensures only user's rules are deleted)
+      // Delete existing rules for this user with explicit user_id filter
       const { error: deleteError } = await supabase
         .from('availability_rules')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all user's rules
+        .eq('user_id', user.id); // Explicit filter by user_id
 
       if (deleteError) {
         console.error('Error deleting existing rules:', deleteError);
@@ -98,7 +100,7 @@ export const useAvailability = () => {
           end_time: rule.endTime,
           is_active: rule.isActive,
           duration: rule.duration,
-          user_id: user.id // Explicitly set user_id for RLS
+          user_id: user.id // Explicitly set user_id
         }));
 
         const { error: insertError } = await supabase

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Project } from '@/types';
@@ -7,7 +8,7 @@ export const useProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch projects from database (RLS ensures user isolation)
+  // Fetch projects from database with explicit user_id filter
   const fetchProjects = async () => {
     try {
       // Verify user is authenticated
@@ -29,10 +30,11 @@ export const useProjects = () => {
 
       console.log('Fetching projects for authenticated user:', user.id);
 
-      // Fetch projects (RLS will automatically filter by user_id)
+      // Fetch projects with explicit user_id filter
       const { data, error } = await supabase
         .from('projects')
         .select('*')
+        .eq('user_id', user.id) // Explicit filter by user_id
         .order('priority', { ascending: true });
 
       if (error) {
