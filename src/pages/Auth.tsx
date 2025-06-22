@@ -28,7 +28,7 @@ const Auth = () => {
         if (error) {
           toast.error(error.message);
         } else {
-          toast.success('Logged in successfully!');
+          toast.success('Signed in successfully!');
           navigate('/');
         }
       } else {
@@ -95,6 +95,23 @@ const Auth = () => {
                   className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 />
               </div>
+              
+              <div className="flex justify-end pt-2">
+                <Button 
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 h-9 text-sm font-medium rounded transition-colors shadow-sm"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Please wait...</span>
+                    </div>
+                  ) : (
+                    isLogin ? 'Sign in' : 'Create'
+                  )}
+                </Button>
+              </div>
             </form>
           </CardHeader>
           
@@ -108,24 +125,6 @@ const Auth = () => {
                 >
                   {isLogin ? 'Create account' : 'Sign in instead'}
                 </button>
-              </div>
-
-              <div className="flex justify-end">
-                <Button 
-                  onClick={handleAuth}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 h-9 text-sm font-medium rounded transition-colors shadow-sm"
-                  disabled={loading}
-                  type="submit"
-                >
-                  {loading ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Please wait...</span>
-                    </div>
-                  ) : (
-                    isLogin ? 'Sign in' : 'Create'
-                  )}
-                </Button>
               </div>
             </div>
           </CardContent>

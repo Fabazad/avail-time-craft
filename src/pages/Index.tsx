@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -161,7 +160,7 @@ const IndexContent = () => {
 
           {/* Navigation Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1 h-auto">
+            <TabsList className="grid w-full grid-cols-3 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1 h-auto">
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Dashboard
               </TabsTrigger>
@@ -170,9 +169,6 @@ const IndexContent = () => {
               </TabsTrigger>
               <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
                 Availability
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
-                Calendar
               </TabsTrigger>
             </TabsList>
 
@@ -205,15 +201,6 @@ const IndexContent = () => {
               <AvailabilityManager
                 availabilityRules={availabilityRules}
                 onUpdateRules={handleUpdateAvailabilityRules}
-              />
-            </TabsContent>
-
-            <TabsContent value="calendar">
-              <CalendarView
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                availabilityRules={availabilityRules}
-                onCompleteSession={completeSession}
               />
             </TabsContent>
           </Tabs>
