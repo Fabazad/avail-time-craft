@@ -11,9 +11,21 @@ export const useScheduledSessions = () => {
   // Fetch scheduled sessions from database (RLS ensures user isolation)
   const fetchScheduledSessions = async () => {
     try {
+      console.log('=== SCHEDULED SESSIONS FETCH DEBUG START ===');
+      
       // Verify user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('Auth user check:', { user: user?.id, error: userError });
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        setScheduledSessions([]);
+        setLoading(false);
+        return;
+      }
+      
       if (!user) {
+        console.log('No authenticated user');
         setScheduledSessions([]);
         setLoading(false);
         return;
@@ -21,14 +33,39 @@ export const useScheduledSessions = () => {
 
       console.log('Fetching scheduled sessions for user:', user.id);
 
+      // Test RLS by trying to fetch with explicit user_id filter
+      const { data: explicitData, error: explicitError } = await supabase
+        .from('scheduled_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('start_time', { ascending: true });
+
+      console.log('Explicit user_id filter query:', { 
+        data: explicitData?.length, 
+        error: explicitError,
+        sample: explicitData?.[0] 
+      });
+
+      // Regular query (should be filtered by RLS)
       const { data, error } = await supabase
         .from('scheduled_sessions')
         .select('*')
         .order('start_time', { ascending: true });
 
-      if (error) throw error;
+      console.log('RLS-filtered query:', { 
+        data: data?.length, 
+        error: error,
+        sample: data?.[0],
+        allUserIds: data?.map(s => s.user_id)
+      });
+
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       console.log('Scheduled sessions fetched:', data?.length || 0);
+      console.log('User IDs in results:', [...new Set(data?.map(s => s.user_id) || [])]);
 
       const formattedSessions: ScheduledSession[] = (data || []).map(session => ({
         id: session.id,
@@ -43,6 +80,7 @@ export const useScheduledSessions = () => {
       }));
 
       setScheduledSessions(formattedSessions);
+      console.log('=== SCHEDULED SESSIONS FETCH DEBUG END ===');
     } catch (error) {
       console.error('Error fetching scheduled sessions:', error);
       toast.error('Failed to load scheduled sessions');

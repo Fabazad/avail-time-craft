@@ -11,24 +11,61 @@ export const useProjects = () => {
   // Fetch projects from database (RLS ensures user isolation)
   const fetchProjects = async () => {
     try {
+      console.log('=== PROJECTS FETCH DEBUG START ===');
+      
       // Verify user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('Auth user check:', { user: user?.id, error: userError });
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+      
       if (!user) {
+        console.log('No authenticated user found');
         setProjects([]);
         setLoading(false);
         return;
       }
 
-      console.log('Fetching projects for user:', user.id);
+      console.log('Fetching projects for authenticated user:', user.id);
 
+      // Test RLS by trying to fetch with explicit user_id filter
+      const { data: explicitData, error: explicitError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('priority', { ascending: true });
+
+      console.log('Explicit user_id filter query:', { 
+        data: explicitData?.length, 
+        error: explicitError,
+        sample: explicitData?.[0] 
+      });
+
+      // Regular query (should be filtered by RLS)
       const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('priority', { ascending: true });
 
-      if (error) throw error;
+      console.log('RLS-filtered query:', { 
+        data: data?.length, 
+        error: error,
+        sample: data?.[0],
+        allUserIds: data?.map(p => p.user_id)
+      });
+
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       console.log('Projects fetched:', data?.length || 0);
+      console.log('User IDs in results:', [...new Set(data?.map(p => p.user_id) || [])]);
 
       const formattedProjects: Project[] = (data || []).map(project => ({
         id: project.id,
@@ -42,6 +79,7 @@ export const useProjects = () => {
       }));
 
       setProjects(formattedProjects);
+      console.log('=== PROJECTS FETCH DEBUG END ===');
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast.error('Failed to load projects');
