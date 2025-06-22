@@ -19,7 +19,7 @@ export type Database = {
           is_active: boolean
           name: string
           start_time: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -30,7 +30,7 @@ export type Database = {
           is_active?: boolean
           name: string
           start_time: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -41,7 +41,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           start_time?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -58,7 +58,7 @@ export type Database = {
           refresh_token: string | null
           sync_enabled: boolean | null
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           access_token?: string | null
@@ -72,7 +72,7 @@ export type Database = {
           refresh_token?: string | null
           sync_enabled?: boolean | null
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           access_token?: string | null
@@ -86,7 +86,7 @@ export type Database = {
           refresh_token?: string | null
           sync_enabled?: boolean | null
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -100,7 +100,7 @@ export type Database = {
           priority: number
           status: string
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -111,7 +111,7 @@ export type Database = {
           priority?: number
           status?: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -122,7 +122,7 @@ export type Database = {
           priority?: number
           status?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -139,7 +139,7 @@ export type Database = {
           project_name: string
           start_time: string
           status: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           color?: string | null
@@ -153,7 +153,7 @@ export type Database = {
           project_name: string
           start_time: string
           status?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           color?: string | null
@@ -167,7 +167,7 @@ export type Database = {
           project_name?: string
           start_time?: string
           status?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {

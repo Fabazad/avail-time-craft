@@ -19,12 +19,16 @@ export const useScheduledSessions = () => {
         return;
       }
 
+      console.log('Fetching scheduled sessions for user:', user.id);
+
       const { data, error } = await supabase
         .from('scheduled_sessions')
         .select('*')
         .order('start_time', { ascending: true });
 
       if (error) throw error;
+
+      console.log('Scheduled sessions fetched:', data?.length || 0);
 
       const formattedSessions: ScheduledSession[] = (data || []).map(session => ({
         id: session.id,
@@ -86,6 +90,8 @@ export const useScheduledSessions = () => {
       if (!user) {
         throw new Error('User not authenticated');
       }
+
+      console.log('Clearing scheduled sessions for user:', user.id);
 
       const { error } = await supabase
         .from('scheduled_sessions')

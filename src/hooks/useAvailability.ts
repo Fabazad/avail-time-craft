@@ -22,6 +22,8 @@ export const useAvailability = () => {
         return;
       }
 
+      console.log('Fetching availability rules for user:', user.id);
+
       const { data, error } = await supabase
         .from('availability_rules')
         .select('*')
@@ -32,7 +34,7 @@ export const useAvailability = () => {
         throw error;
       }
 
-      console.log('Raw availability rules from database:', data);
+      console.log('Raw availability rules from database:', data?.length || 0);
 
       const formattedRules: AvailabilityRule[] = (data || []).map(rule => ({
         id: rule.id,
@@ -45,7 +47,7 @@ export const useAvailability = () => {
         createdAt: new Date(rule.created_at)
       }));
 
-      console.log('Formatted availability rules:', formattedRules);
+      console.log('Formatted availability rules:', formattedRules.length);
       setAvailabilityRules(formattedRules);
     } catch (error) {
       console.error('Error fetching availability rules:', error);
@@ -59,13 +61,15 @@ export const useAvailability = () => {
   // Save availability rules to database
   const updateAvailabilityRules = async (rules: AvailabilityRule[]) => {
     try {
-      console.log('Updating availability rules:', rules);
+      console.log('Updating availability rules:', rules.length);
 
       // First, get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('User not authenticated');
       }
+
+      console.log('Updating availability rules for user:', user.id);
 
       // Delete existing rules for this user (RLS ensures only user's rules are deleted)
       const { error: deleteError } = await supabase

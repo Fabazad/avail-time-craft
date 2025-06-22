@@ -19,12 +19,16 @@ export const useProjects = () => {
         return;
       }
 
+      console.log('Fetching projects for user:', user.id);
+
       const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('priority', { ascending: true });
 
       if (error) throw error;
+
+      console.log('Projects fetched:', data?.length || 0);
 
       const formattedProjects: Project[] = (data || []).map(project => ({
         id: project.id,
@@ -60,6 +64,8 @@ export const useProjects = () => {
       if (!user) {
         throw new Error('User not authenticated');
       }
+      
+      console.log('Creating project for user:', user.id);
       
       // Get the highest priority number to make this project the lowest priority
       const maxPriority = projects.length > 0 ? Math.max(...projects.map(p => p.priority)) : 0;
