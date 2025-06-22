@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AvailabilityRule } from '@/types';
@@ -11,11 +10,8 @@ export const useAvailability = () => {
   // Fetch availability rules from database (RLS ensures user isolation)
   const fetchAvailabilityRules = async () => {
     try {
-      console.log('=== AVAILABILITY RULES FETCH DEBUG START ===');
-      
       // Verify user is authenticated
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      console.log('Auth user check:', { user: user?.id, error: userError });
       
       if (userError) {
         console.error('Auth error:', userError);
@@ -33,31 +29,11 @@ export const useAvailability = () => {
 
       console.log('Fetching availability rules for user:', user.id);
 
-      // Test RLS by trying to fetch with explicit user_id filter
-      const { data: explicitData, error: explicitError } = await supabase
-        .from('availability_rules')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-
-      console.log('Explicit user_id filter query:', { 
-        data: explicitData?.length, 
-        error: explicitError,
-        sample: explicitData?.[0] 
-      });
-
-      // Regular query (should be filtered by RLS)
+      // Fetch availability rules (RLS will automatically filter by user_id)
       const { data, error } = await supabase
         .from('availability_rules')
         .select('*')
         .order('created_at', { ascending: true });
-
-      console.log('RLS-filtered query:', { 
-        data: data?.length, 
-        error: error,
-        sample: data?.[0],
-        allUserIds: data?.map(r => r.user_id)
-      });
 
       if (error) {
         console.error('Error fetching availability rules:', error);
@@ -65,7 +41,6 @@ export const useAvailability = () => {
       }
 
       console.log('Raw availability rules from database:', data?.length || 0);
-      console.log('User IDs in results:', [...new Set(data?.map(r => r.user_id) || [])]);
 
       const formattedRules: AvailabilityRule[] = (data || []).map(rule => ({
         id: rule.id,
@@ -80,7 +55,6 @@ export const useAvailability = () => {
 
       console.log('Formatted availability rules:', formattedRules.length);
       setAvailabilityRules(formattedRules);
-      console.log('=== AVAILABILITY RULES FETCH DEBUG END ===');
     } catch (error) {
       console.error('Error fetching availability rules:', error);
       toast.error('Failed to load availability rules');
