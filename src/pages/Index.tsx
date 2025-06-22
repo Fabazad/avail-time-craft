@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -5,7 +6,6 @@ import { ProjectForm } from '@/components/ProjectForm';
 import { Dashboard } from '@/components/Dashboard';
 import { SortableProjectsList } from '@/components/SortableProjectsList';
 import { AvailabilityManager } from '@/components/AvailabilityManager';
-import { CalendarView } from '@/components/CalendarView';
 import { useProjects } from '@/hooks/useProjects';
 import { useScheduledSessions } from '@/hooks/useScheduledSessions';
 import { useAvailability } from '@/hooks/useAvailability';
@@ -115,10 +115,10 @@ const IndexContent = () => {
 
   if (projectsLoading || sessionsLoading || availabilityLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-sm">Loading...</p>
         </div>
       </div>
     );
@@ -126,31 +126,33 @@ const IndexContent = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="container mx-auto p-3 sm:p-4 lg:p-6 space-y-6 sm:space-y-8">
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-            <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-1 sm:mb-2">
-                Project Scheduler
-              </h1>
-              <p className="text-sm sm:text-base text-gray-600">
-                Manage your projects and schedule work sessions efficiently
+          <div className="flex items-center justify-between py-6 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-full">
+                <span className="text-white text-lg font-medium">PS</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-normal text-gray-900">
+                  Project Scheduler
+                </h1>
                 {isRecalculating && (
-                  <span className="ml-2 text-blue-600 text-xs sm:text-sm">
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></span>
-                    Updating schedule...
-                  </span>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <div className="animate-spin rounded-full h-3 w-3 border border-blue-600 border-t-transparent"></div>
+                    <span className="text-xs text-gray-500">Updating schedule...</span>
+                  </div>
                 )}
-              </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center space-x-3">
               {activeTab === 'projects' && (
                 <Button 
                   onClick={() => setShowForm(true)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm sm:text-base"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-6 py-2 text-sm font-medium shadow-sm hover:shadow-md transition-all"
                 >
-                  <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                  <Plus className="w-4 h-4 mr-2" />
                   New Project
                 </Button>
               )}
@@ -158,58 +160,69 @@ const IndexContent = () => {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-3 bg-white/70 backdrop-blur-sm border border-blue-200/50 p-1 h-auto">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="projects" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
-                Projects
-              </TabsTrigger>
-              <TabsTrigger value="availability" className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm py-2 sm:py-2.5">
-                Availability
-              </TabsTrigger>
-            </TabsList>
+          {/* Content */}
+          <div className="py-8">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+              <TabsList className="inline-flex h-10 items-center justify-center rounded-full bg-white p-1 shadow-sm border border-gray-200">
+                <TabsTrigger 
+                  value="dashboard" 
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-6 py-2 text-sm font-medium transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                >
+                  Dashboard
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="projects" 
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-6 py-2 text-sm font-medium transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                >
+                  Projects
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="availability" 
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-6 py-2 text-sm font-medium transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                >
+                  Availability
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="dashboard">
-              <Dashboard
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                availabilityRules={availabilityRules}
-                onCompleteSession={completeSession}
-                onUpdateProject={handleUpdateProject}
-                onDeleteProject={handleDeleteProject}
-                onScheduleRecalculated={handleScheduleRecalculated}
-              />
-              <div className="mt-6">
-                <GoogleCalendarIntegration />
-              </div>
-            </TabsContent>
+              <TabsContent value="dashboard" className="space-y-6">
+                <Dashboard
+                  projects={projects}
+                  scheduledSessions={scheduledSessions}
+                  availabilityRules={availabilityRules}
+                  onCompleteSession={completeSession}
+                  onUpdateProject={handleUpdateProject}
+                  onDeleteProject={handleDeleteProject}
+                  onScheduleRecalculated={handleScheduleRecalculated}
+                />
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                  <GoogleCalendarIntegration />
+                </div>
+              </TabsContent>
 
-            <TabsContent value="projects">
-              <SortableProjectsList
-                projects={projects}
-                scheduledSessions={scheduledSessions}
-                onUpdateProject={handleUpdateProject}
-                onDeleteProject={handleDeleteProject}
-                onReorderProjects={handleReorderProjects}
-              />
-            </TabsContent>
+              <TabsContent value="projects">
+                <SortableProjectsList
+                  projects={projects}
+                  scheduledSessions={scheduledSessions}
+                  onUpdateProject={handleUpdateProject}
+                  onDeleteProject={handleDeleteProject}
+                  onReorderProjects={handleReorderProjects}
+                />
+              </TabsContent>
 
-            <TabsContent value="availability">
-              <AvailabilityManager
-                availabilityRules={availabilityRules}
-                onUpdateRules={handleUpdateAvailabilityRules}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="availability">
+                <AvailabilityManager
+                  availabilityRules={availabilityRules}
+                  onUpdateRules={handleUpdateAvailabilityRules}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
 
           {/* Project Form Modal */}
           <Dialog open={showForm} onOpenChange={setShowForm}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md rounded-xl">
               <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
+                <DialogTitle className="text-xl font-normal">Create New Project</DialogTitle>
               </DialogHeader>
               <ProjectForm 
                 onSubmit={handleCreateProject}

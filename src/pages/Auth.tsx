@@ -54,52 +54,62 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Google Logo Area */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-            <span className="text-white text-2xl font-bold">PS</span>
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md">
+        {/* Logo and Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-full mb-6">
+            <span className="text-white text-xl font-medium">PS</span>
           </div>
           <h1 className="text-2xl font-normal text-gray-900 mb-2">
-            {isLogin ? 'Sign in' : 'Create your Account'}
+            {isLogin ? 'Sign in' : 'Create your account'}
           </h1>
           <p className="text-sm text-gray-600">
-            {isLogin ? 'to continue to Project Scheduler' : 'to get started with Project Scheduler'}
+            to continue to Project Scheduler
           </p>
         </div>
 
-        {/* Form Card */}
-        <Card className="border border-gray-300 rounded-lg shadow-sm">
-          <CardHeader className="px-10 pt-8 pb-6">
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                />
+        {/* Main Card */}
+        <Card className="border border-gray-200 shadow-sm rounded-lg overflow-hidden">
+          <CardHeader className="px-8 pt-8 pb-0">
+            <form onSubmit={handleAuth} className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="h-12 text-base border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+                
+                <div>
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    className="h-12 text-base border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
               </div>
               
-              <div>
-                <Input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="h-14 text-base border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                />
-              </div>
-              
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  {isLogin ? 'Create account' : 'Sign in instead'}
+                </button>
+                
                 <Button 
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 h-9 text-sm font-medium rounded transition-colors shadow-sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 h-auto text-sm font-medium rounded-full transition-all shadow-sm hover:shadow-md"
                   disabled={loading}
                 >
                   {loading ? (
@@ -115,29 +125,18 @@ const Auth = () => {
             </form>
           </CardHeader>
           
-          <CardContent className="px-10 pb-8">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                >
-                  {isLogin ? 'Create account' : 'Sign in instead'}
-                </button>
+          <CardContent className="px-8 pb-8 pt-4">
+            <div className="text-center">
+              <div className="text-xs text-gray-500 space-x-4">
+                <a href="#" className="hover:text-gray-700 transition-colors">Privacy</a>
+                <span>•</span>
+                <a href="#" className="hover:text-gray-700 transition-colors">Terms</a>
+                <span>•</span>
+                <a href="#" className="hover:text-gray-700 transition-colors">Help</a>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <div className="flex justify-center space-x-6 text-xs text-gray-500">
-            <a href="#" className="hover:text-gray-700 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-gray-700 transition-colors">Terms</a>
-            <a href="#" className="hover:text-gray-700 transition-colors">Help</a>
-          </div>
-        </div>
       </div>
     </div>
   );
