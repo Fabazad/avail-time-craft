@@ -31,11 +31,11 @@ serve(async (req) => {
       throw new Error('User not authenticated')
     }
 
-    // Get active calendar connection
+    // Get active calendar connection with explicit user_id filter
     const { data: connection } = await supabaseClient
       .from('calendar_connections')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id) // Explicit filter by user_id
       .eq('provider', 'google')
       .eq('is_active', true)
       .single()
@@ -105,11 +105,12 @@ serve(async (req) => {
       throw new Error(`Failed to create event: ${event.error?.message}`)
     }
 
-    // Store the event ID in our database for future reference
+    // Store the event ID in our database with explicit user_id filter
     await supabaseClient
       .from('scheduled_sessions')
       .update({ google_event_id: event.id })
       .eq('id', sessionId)
+      .eq('user_id', user.id) // Explicit filter by user_id
 
     return new Response(
       JSON.stringify({ 

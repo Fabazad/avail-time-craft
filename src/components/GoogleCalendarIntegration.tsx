@@ -23,12 +23,21 @@ export const GoogleCalendarIntegration = () => {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
 
-  // Fetch existing connection
+  // Fetch existing connection with explicit user_id filter
   const fetchConnection = async () => {
     try {
+      // Get current user first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setConnection(null);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("calendar_connections")
         .select("*")
+        .eq("user_id", user.id) // Explicit filter by user_id
         .eq("provider", "google")
         .eq("is_active", true)
         .maybeSingle();
@@ -153,10 +162,18 @@ export const GoogleCalendarIntegration = () => {
     if (!connection) return;
 
     try {
+      // Get current user to ensure we only update our own connection
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("User not authenticated");
+        return;
+      }
+
       const { error } = await supabase
         .from("calendar_connections")
         .update({ is_active: false })
-        .eq("id", connection.id);
+        .eq("id", connection.id)
+        .eq("user_id", user.id); // Explicit filter by user_id
 
       if (error) throw error;
 

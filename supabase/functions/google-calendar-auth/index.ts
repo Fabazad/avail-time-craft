@@ -85,11 +85,11 @@ serve(async (req) => {
 
     console.log('Storing connection in database...')
 
-    // Store connection in database
+    // Store connection in database with explicit user_id
     const { error } = await supabaseClient
       .from('calendar_connections')
       .upsert({
-        user_id: user.id,
+        user_id: user.id, // Explicit user_id
         provider: 'google',
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

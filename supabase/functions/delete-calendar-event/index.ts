@@ -31,11 +31,11 @@ serve(async (req) => {
       throw new Error('User not authenticated')
     }
 
-    // Get active calendar connection
+    // Get active calendar connection with explicit user_id filter
     const { data: connection } = await supabaseClient
       .from('calendar_connections')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id) // Explicit filter by user_id
       .eq('provider', 'google')
       .eq('is_active', true)
       .single()
