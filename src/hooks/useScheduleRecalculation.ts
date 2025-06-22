@@ -42,9 +42,9 @@ export const useScheduleRecalculation = () => {
 
       if (error) throw error;
 
-      // Show success toast with details
+      // Show success toast with session count only
       toast.success('Schedule updated successfully!', {
-        description: `${data.sessionsCount} sessions created, ${data.conflictsAvoided} calendar conflicts avoided`
+        description: `${data.sessionsCount} sessions created`
       });
 
       return data;
