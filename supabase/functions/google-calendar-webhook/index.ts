@@ -40,10 +40,6 @@ serve(async (req) => {
   console.log("URL:", req.url);
 
   try {
-    // Verify the request is from Google Calendar
-    const authHeader = req.headers.get("Authorization");
-    console.log("Auth header present:", !!authHeader);
-
     // For Google Calendar webhooks, we don't require authorization headers
     // Google sends webhook notifications without auth headers
     // We'll verify the request is legitimate by checking the payload structure
