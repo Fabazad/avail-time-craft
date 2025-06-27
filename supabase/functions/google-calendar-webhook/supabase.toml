@@ -1,0 +1,2 @@
+[functions.google-calendar-webhook]
+verify_jwt = false
