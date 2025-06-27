@@ -56,9 +56,41 @@ serve(async (req) => {
 
     for (const connection of expiredConnections) {
       try {
+        console.log(`Processing connection for user ${connection.user_id}:`, {
+          calendar_id: connection.calendar_id,
+          expires_at: connection.expires_at,
+          webhook_id: connection.webhook_id,
+          webhook_expiration: connection.webhook_expiration,
+        });
+
         // Refresh token if needed
         let accessToken = connection.access_token;
-        if (new Date(connection.expires_at) <= new Date()) {
+
+        // Safely check if token is expired
+        let isTokenExpired = false;
+        if (connection.expires_at) {
+          try {
+            const expiresAt = new Date(connection.expires_at);
+            if (!isNaN(expiresAt.getTime())) {
+              isTokenExpired = expiresAt <= new Date();
+            } else {
+              console.warn(
+                `Invalid expires_at date for user ${connection.user_id}: ${connection.expires_at}`
+              );
+              isTokenExpired = true; // Assume expired if invalid date
+            }
+          } catch (dateError) {
+            console.warn(
+              `Error parsing expires_at for user ${connection.user_id}:`,
+              dateError
+            );
+            isTokenExpired = true; // Assume expired if parsing fails
+          }
+        } else {
+          isTokenExpired = true; // Assume expired if no expiration date
+        }
+
+        if (isTokenExpired) {
           const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",
             headers: {
@@ -76,14 +108,23 @@ serve(async (req) => {
           if (refreshResponse.ok) {
             accessToken = tokens.access_token;
 
-            // Update stored tokens
-            await supabaseClient
-              .from("calendar_connections")
-              .update({
-                access_token: tokens.access_token,
-                expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-              })
-              .eq("id", connection.id);
+            // Update stored tokens with safe date conversion
+            try {
+              const newExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+              await supabaseClient
+                .from("calendar_connections")
+                .update({
+                  access_token: tokens.access_token,
+                  expires_at: newExpiresAt.toISOString(),
+                })
+                .eq("id", connection.id);
+            } catch (dateError) {
+              console.error(
+                `Error updating expires_at for user ${connection.user_id}:`,
+                dateError
+              );
+              // Continue without updating the expiration date
+            }
           } else {
             console.error(`Token refresh failed for user ${connection.user_id}:`, tokens);
             errorCount++;
