@@ -12,7 +12,7 @@ interface GoogleCalendarWebhook {
   resourceUri: string;
   token: string;
   expiration: string;
-  type: "sync" | "push";
+  type: "sync" | "push" | "test";
 }
 
 interface CalendarEvent {
@@ -44,11 +44,9 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     console.log("Auth header present:", !!authHeader);
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.log("Missing or invalid authorization header");
-      // For now, we'll accept all requests but in production you should verify the token
-      // against Google's verification endpoint
-    }
+    // For Google Calendar webhooks, we don't require authorization headers
+    // Google sends webhook notifications without auth headers
+    // We'll verify the request is legitimate by checking the payload structure
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -68,6 +66,19 @@ serve(async (req) => {
       console.log("Processing SYNC notification");
       // This is a sync notification
       await handleCalendarSync(supabaseClient, body);
+    } else if (body.type === "test") {
+      console.log("Processing TEST notification");
+      // This is a test notification
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Test webhook received successfully",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
     } else {
       console.log("Unknown webhook type:", body.type);
       console.log("Full body:", body);
