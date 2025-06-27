@@ -1,4 +1,3 @@
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,18 +15,23 @@ interface CalendarConnection {
   last_sync_at: string | null;
   sync_enabled: boolean;
   created_at: string;
+  webhook_id: string | null;
+  webhook_expiration: string | null;
 }
 
 export const GoogleCalendarIntegration = () => {
   const [connection, setConnection] = useState<CalendarConnection | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch existing connection with explicit user_id filter
   const fetchConnection = async () => {
     try {
       // Get current user first
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setConnection(null);
         setLoading(false);
@@ -57,7 +61,9 @@ export const GoogleCalendarIntegration = () => {
     setConnecting(true);
     try {
       // Check if user is authenticated first
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Please log in first to connect your Google Calendar");
         setConnecting(false);
@@ -65,10 +71,14 @@ export const GoogleCalendarIntegration = () => {
       }
 
       // Get Google Client ID from Supabase secrets via edge function
-      const { data: configData, error: configError } = await supabase.functions.invoke('get-google-config');
-      
+      const { data: configData, error: configError } = await supabase.functions.invoke(
+        "get-google-config"
+      );
+
       if (configError || !configData.clientId) {
-        toast.error("Google OAuth configuration not found. Please check your Supabase secrets.");
+        toast.error(
+          "Google OAuth configuration not found. Please check your Supabase secrets."
+        );
         setConnecting(false);
         return;
       }
@@ -122,7 +132,9 @@ export const GoogleCalendarIntegration = () => {
           console.log("Processing OAuth callback with code:", code);
 
           // Get current session to ensure we're authenticated
-          const { data: { session } } = await supabase.auth.getSession();
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
           if (!session) {
             toast.error("Authentication required. Please log in first.");
             return;
@@ -135,7 +147,7 @@ export const GoogleCalendarIntegration = () => {
               body: { code, state },
               headers: {
                 Authorization: `Bearer ${session.access_token}`,
-              }
+              },
             }
           );
 
@@ -163,7 +175,9 @@ export const GoogleCalendarIntegration = () => {
 
     try {
       // Get current user to ensure we only update our own connection
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast.error("User not authenticated");
         return;
@@ -183,6 +197,37 @@ export const GoogleCalendarIntegration = () => {
       console.error("Error disconnecting calendar:", error);
       toast.error("Failed to disconnect calendar");
     }
+  };
+
+  // Refresh webhook
+  const refreshWebhook = async () => {
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("refresh-calendar-webhook");
+
+      if (error) {
+        console.error("Webhook refresh error:", error);
+        toast.error("Failed to refresh webhook");
+      } else {
+        console.log("Webhook refresh response:", data);
+        toast.success("Webhook refreshed successfully");
+        fetchConnection(); // Refresh connection data
+      }
+    } catch (error) {
+      console.error("Error refreshing webhook:", error);
+      toast.error("Failed to refresh webhook");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Check if webhook is expired or expiring soon
+  const isWebhookExpired = () => {
+    if (!connection?.webhook_expiration) return true;
+    const expiration = new Date(connection.webhook_expiration);
+    const now = new Date();
+    const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+    return expiration <= oneDayFromNow;
   };
 
   useEffect(() => {
@@ -211,8 +256,8 @@ export const GoogleCalendarIntegration = () => {
         {!connection ? (
           <div className="text-center space-y-4">
             <p className="text-gray-600">
-              Connect your Google Calendar to avoid scheduling conflicts with existing events
-              and automatically create calendar events for your work sessions.
+              Connect your Google Calendar to avoid scheduling conflicts with existing
+              events and automatically create calendar events for your work sessions.
             </p>
             <Button
               onClick={connectGoogleCalendar}
@@ -242,20 +287,58 @@ export const GoogleCalendarIntegration = () => {
                   Google Calendar
                 </Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={disconnectCalendar}
-                className="text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <Unlink className="w-4 h-4 mr-1" />
-                Disconnect
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshWebhook}
+                  disabled={refreshing}
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                >
+                  {refreshing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      Refresh Webhook
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnectCalendar}
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <Unlink className="w-4 h-4 mr-1" />
+                  Disconnect
+                </Button>
+              </div>
             </div>
 
             <div className="text-sm text-gray-600 space-y-1">
               <div>Calendar ID: {connection.calendar_id}</div>
               <div>Connected: {format(new Date(connection.created_at), "PPp")}</div>
+              {connection.last_sync_at && (
+                <div>Last Sync: {format(new Date(connection.last_sync_at), "PPp")}</div>
+              )}
+              {connection.webhook_id && (
+                <div className="flex items-center gap-2">
+                  <span>Webhook Status:</span>
+                  {isWebhookExpired() ? (
+                    <Badge variant="destructive" className="text-xs">
+                      Expired
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-green-600">
+                      Active
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
