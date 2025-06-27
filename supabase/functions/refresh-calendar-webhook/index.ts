@@ -157,11 +157,41 @@ serve(async (req) => {
         }
 
         // Update webhook information in database
+        let webhookExpiration: string | null = null;
+
+        // Handle the expiration date properly
+        if (watchData.expiration) {
+          try {
+            // Google returns expiration as a timestamp in milliseconds
+            const expirationTimestamp = parseInt(watchData.expiration);
+            if (!isNaN(expirationTimestamp)) {
+              webhookExpiration = new Date(expirationTimestamp).toISOString();
+            } else {
+              // Try parsing as ISO string
+              webhookExpiration = new Date(watchData.expiration).toISOString();
+            }
+          } catch (dateError) {
+            console.warn(
+              `Invalid expiration date from Google: ${watchData.expiration}`,
+              dateError
+            );
+            // Set a default expiration (30 days from now)
+            webhookExpiration = new Date(
+              Date.now() + 30 * 24 * 60 * 60 * 1000
+            ).toISOString();
+          }
+        } else {
+          // Set a default expiration if none provided
+          webhookExpiration = new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+          ).toISOString();
+        }
+
         await supabaseClient
           .from("calendar_connections")
           .update({
             webhook_id: watchData.id,
-            webhook_expiration: new Date(watchData.expiration).toISOString(),
+            webhook_expiration: webhookExpiration,
             last_sync_at: new Date().toISOString(),
           })
           .eq("id", connection.id);
