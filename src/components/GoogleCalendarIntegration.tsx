@@ -24,6 +24,7 @@ export const GoogleCalendarIntegration = () => {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   // Fetch existing connection with explicit user_id filter
   const fetchConnection = async () => {
@@ -87,7 +88,8 @@ export const GoogleCalendarIntegration = () => {
 
       // Generate OAuth URL with correct redirect URI and expanded scope for calendar write access
       const redirectUri = window.location.origin;
-      const scope = "https://www.googleapis.com/auth/calendar"; // Full calendar access (read/write)
+      const scope =
+        "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events"; // Full calendar access including events
       const state = crypto.randomUUID();
 
       // Store state for verification
@@ -230,6 +232,44 @@ export const GoogleCalendarIntegration = () => {
     return expiration <= oneDayFromNow;
   };
 
+  // Check webhook status
+  const checkWebhookStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-webhook-status");
+
+      if (error) {
+        console.error("Webhook status check error:", error);
+        toast.error("Failed to check webhook status");
+      } else {
+        console.log("Webhook status:", data);
+
+        // Show detailed status information
+        const status = data.webhookStatus;
+        const message = `
+Webhook Status:
+- Has Webhook: ${status.hasWebhook}
+- Webhook ID: ${status.webhookId || "None"}
+- Expired: ${status.isExpired}
+- Last Sync: ${status.lastSync || "Never"}
+- Webhook URL Accessible: ${data.webhookAccessible}
+- Calendar Accessible: ${data.calendarAccessible}
+- Event Count: ${data.eventCount}
+        `.trim();
+
+        toast.info("Webhook Status Check", {
+          description: message,
+          duration: 10000,
+        });
+      }
+    } catch (error) {
+      console.error("Error checking webhook status:", error);
+      toast.error("Failed to check webhook status");
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
   useEffect(() => {
     fetchConnection();
   }, []);
@@ -288,6 +328,25 @@ export const GoogleCalendarIntegration = () => {
                 </Badge>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={checkWebhookStatus}
+                  disabled={checkingStatus}
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                >
+                  {checkingStatus ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 mr-1" />
+                      Check Status
+                    </>
+                  )}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
